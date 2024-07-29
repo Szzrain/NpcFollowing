@@ -1,0 +1,30 @@
+{
+  "Changes": [
+    {
+      "Action": "Load",
+      "Priority": "Low",
+      "Target": "Mods/szzrain/debug.dog",
+      "FromFile": "assets/texture/dog.png"
+    },
+    {
+      "Action": "EditData",
+      "Target": "Data/Objects",
+      "Entries": {
+        "szzrain.CPMyFirstMod.debug.dog": {
+          "Name": "CPMyFirstStarMod.object.debug.dog",
+          "DisplayName": "{{i18n:CPMyFirstStarMod.object.debug.dog.name}}",
+          "Description": "{{i18n:CPMyFirstStarMod.object.debug.dog.description}}",
+          "Category": 20,
+          "Price": 300,
+          "Texture": "Mods\\szzrain\\debug.dog",
+          "SpriteIndex": 0,
+          "CanBePlacedIndoors": true,
+          "CanBePlacedOutdoors": true,
+          "ExcludeFromFishingCollection": true,
+          "ExcludeFromShippingCollection": true,
+          "ExcludeFromRandomSale": true
+        }
+      }
+    }
+  ]
+}

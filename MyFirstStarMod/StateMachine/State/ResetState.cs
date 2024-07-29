@@ -71,8 +71,8 @@ namespace MyFirstStarMod.StateMachine.State
 
             Game1.fadeScreenToBlack();
             companion.faceTowardFarmerTimer = 0;
-            this.DelayedWarp(this.companionRescheduleDestinationLocation,
-                this.companionRescheduleDestinationPoint, 500, new Action(this.CompanionEndCleanup));
+            // this.DelayedWarp(this.companionRescheduleDestinationLocation,
+            //     this.companionRescheduleDestinationPoint, 500, new Action(this.CompanionEndCleanup));
         }
 
         private Dictionary<int, SchedulePathDescription> GetCompanionSchedule(int dayOfMonth)

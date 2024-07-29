@@ -18,7 +18,7 @@ namespace MyFirstStarMod
     /// <summary>The mod entry point.</summary>
     internal sealed class ModEntry : Mod
     {
-        public static Dictionary<Farmer, Dictionary<NPC, NpcMovementController>> following_npcs = new Dictionary<Farmer, Dictionary<NPC, NpcMovementController>>();
+        public static Dictionary<Farmer, List<NPC>> following_npcs = new Dictionary<Farmer, List<NPC>>();
         public static CompanionManager companionManager;
         public static IModHelper ModHelper;
         /*********
@@ -49,13 +49,6 @@ namespace MyFirstStarMod
             );
             companionManager = new CompanionManager(this.Monitor);
             helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
-        }
-        static void set_follow_schedule(NPC npc, Farmer farmer)
-        {
-            npc.temporaryController = null;
-            npc.controller = null;
-            npc.followSchedule = false;
-            // npc.speed = farmer.speed;
         }
         
         public static void setNpcStateMachine(NPC npc, CompanionManager companionManager, IModEvents gameEvents, IMonitor monitor)
@@ -120,7 +113,28 @@ namespace MyFirstStarMod
                             __instance.doEmote(20); 
                             if (ModEntry.following_npcs.ContainsKey(who))
                             {
-                                
+                                if (ModEntry.following_npcs[who].Contains(__instance))
+                                {
+                                    Monitor.Log($"Removed {__instance.Name} from possible companions.", LogLevel.Info);
+                                    companionManager.PossibleCompanions[__instance.Name].Dismiss();
+                                    ModEntry.following_npcs[who].Remove(__instance);
+                                }
+                                else
+                                {
+                                    Monitor.Log($"Added {__instance.Name} to possible companions.", LogLevel.Info);
+                                    __instance.ClearSchedule();
+                                    __instance.followSchedule = false;
+                                    if (ModEntry.companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                                    {
+                                        Monitor.Log($"Companion already exists in possible companions, activating.", LogLevel.Info);
+                                    }
+                                    else
+                                    {
+                                        setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
+                                    }
+                                    companionManager.PossibleCompanions[__instance.Name].Recruit();
+                                    ModEntry.following_npcs[who].Add(__instance);
+                                }
                             } 
                             else 
                             {
@@ -129,7 +143,7 @@ namespace MyFirstStarMod
                                 __instance.followSchedule = false;
                                 setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
                                 companionManager.PossibleCompanions[__instance.Name].Recruit();
-                                ModEntry.following_npcs[who] = new Dictionary<NPC, NpcMovementController>();
+                                ModEntry.following_npcs[who] = new List<NPC> {__instance};
                             }
                             
                             return false;

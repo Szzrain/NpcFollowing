@@ -178,8 +178,7 @@ namespace MyFirstStarMod.AI
 
         private void CheckPotentialStateChange()
         {
-            // if (this.npc.swimming.Value || this.swimsuit)
-            if (this.npc.swimming.Value)
+            if (this.npc.swimming.Value || this.swimsuit)
             {
                 if (this.CurrentState != State.FOLLOW)
                 {
@@ -269,8 +268,7 @@ namespace MyFirstStarMod.AI
             }
 
             this.cooldown.Update(e);
-            // TODO: Implement swimming
-            // this.CheckSwimming();
+            this.CheckSwimming();
             //
             // if (this.Csm.HasSkill("doctor"))
             //     this.UpdateDoctor(e);
@@ -332,12 +330,20 @@ namespace MyFirstStarMod.AI
             GameLocation previousLocation = this.npc.currentLocation;
             
             // Warp NPC to player's location at theirs position
-            // Helper.WarpTo(this.npc, l, this.farmer.getTileLocationPoint());
-            Game1.warpCharacter(this.npc, l, this.farmer.Tile);
+            Helper.WarpTo(this.npc, l, this.farmer.Tile.ToPoint());
             this.cooldown.Set(CHANGE_STATE_COOLDOWN, 30);
 
             // Fire location changed event
             this.OnLocationChanged(previousLocation, this.npc.currentLocation);
+            
+            
+            // delay for 1 second, then check if the NPC is in the water
+            // this.Monitor.Log("Delaying for 1 second", LogLevel.Debug);
+            Task.Delay(1000).ContinueWith((task) =>
+            {
+                // this.Monitor.Log("Checking if NPC is in the water", LogLevel.Debug);
+                this.AfterWarpChangeSwimsuit();
+            });
         }
 
         private void OnLocationChanged(GameLocation previous, GameLocation next)

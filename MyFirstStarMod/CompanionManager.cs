@@ -11,6 +11,7 @@ using MyFirstStarMod.Model;
 using MyFirstStarMod.HUD;
 using MyFirstStarMod.Story;
 using System.Linq;
+using MyFirstStarMod.StateMachine.State;
 using NpcAdventure.Model;
 
 // using ExpandedPreconditionsUtility;
@@ -24,7 +25,7 @@ namespace MyFirstStarMod
         private readonly IMonitor monitor;
 
         public Dictionary<string, CompanionStateMachine> PossibleCompanions { get; }
-        public IGameMaster GameMaster { get; }
+        // public IGameMaster GameMaster { get; }
         // public IConditionsChecker EPU { get; }
 
         public CompanionStateMachine GetRecruitedCompanion()
@@ -37,7 +38,7 @@ namespace MyFirstStarMod
             return this.PossibleCompanions.Values.Count(csm => csm.CurrentStateFlag == StateFlag.RECRUITED) > 0;
         }
 
-        public CompanionDisplay Hud { get; }
+        // public CompanionDisplay Hud { get; }
         public Config Config { get; }
 
         public Farmer Farmer
@@ -65,15 +66,15 @@ namespace MyFirstStarMod
         //     this.hintDriver.CheckHint += this.HintDriver_CheckHint;
         // }
         
-        public CompanionManager(IGameMaster gameMaster, CompanionDisplay hud, Config config, IMonitor monitor)
+        public CompanionManager(IMonitor monitor)
         {
-            this.GameMaster = gameMaster ?? throw new ArgumentNullException(nameof(gameMaster));
+            // this.GameMaster = gameMaster ?? throw new ArgumentNullException(nameof(gameMaster));
             // this.dialogueDriver = dialogueDriver ?? throw new ArgumentNullException(nameof(dialogueDriver));
             // this.hintDriver = hintDriver ?? throw new ArgumentNullException(nameof(hintDriver));
-            this.Hud = hud ?? throw new ArgumentNullException(nameof(hud));
+            // this.Hud = hud ?? throw new ArgumentNullException(nameof(hud));
             this.monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
             this.PossibleCompanions = new Dictionary<string, CompanionStateMachine>();
-            this.Config = config ?? throw new ArgumentNullException(nameof(config));
+            // this.Config = config ?? throw new ArgumentNullException(nameof(config));
             // this.EPU = epu ?? throw new ArgumentNullException(nameof(epu));
 
             // this.dialogueDriver.DialogueChanged += this.DialogueDriver_DialogueChanged;
@@ -150,10 +151,11 @@ namespace MyFirstStarMod
                 return false;
             }
 
-            if (this.GameMaster.Mode == GameMasterMode.OFFLINE)
-                return true; // In non-adventure mode we can recruit a companion
-
-            return this.GameMaster.Data.GetPlayerState(this.Farmer).isEligible;
+            return true;
+            // if (this.GameMaster.Mode == GameMasterMode.OFFLINE)
+            //     return true; // In non-adventure mode we can recruit a companion
+            //
+            // return this.GameMaster.Data.GetPlayerState(this.Farmer).isEligible;
         }
 
         /// <summary>
@@ -241,13 +243,14 @@ namespace MyFirstStarMod
 
             foreach (string npcName in dispositions.Keys)
             {
-                CompanionStateMachine csm = new CompanionStateMachine(npcName, this, new CompanionMetaData(dispositions[npcName]), loader, reflection, this.monitor);
+                // CompanionStateMachine csm = new CompanionStateMachine(npcName, this, new CompanionMetaData(dispositions[npcName]), loader, reflection, this.monitor);
+                CompanionStateMachine csm = new CompanionStateMachine(npcName, this, this.monitor);
                 Dictionary<StateFlag, ICompanionState> stateHandlers = new Dictionary<StateFlag, ICompanionState>()
                 {
-                    // [StateFlag.RESET] = new ResetState(csm, gameEvents, this.monitor),
-                    // [StateFlag.AVAILABLE] = new AvailableState(csm, gameEvents, this.monitor),
-                    // [StateFlag.RECRUITED] = new RecruitedState(csm, gameEvents, specialEvents, this.monitor),
-                    // [StateFlag.UNAVAILABLE] = new UnavailableState(csm, gameEvents, this.monitor),
+                    [StateFlag.RESET] = new ResetState(csm, gameEvents, this.monitor),
+                    [StateFlag.AVAILABLE] = new AvailableState(csm, gameEvents, this.monitor),
+                    [StateFlag.RECRUITED] = new RecruitedState(csm, gameEvents, this.monitor),
+                    [StateFlag.UNAVAILABLE] = new UnavailableState(csm, gameEvents, this.monitor),
                 };
 
                 csm.Setup(stateHandlers);

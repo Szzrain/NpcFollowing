@@ -11,6 +11,7 @@ using Microsoft.Xna.Framework;
 using MyFirstStarMod.AI.Controller;
 using MyFirstStarMod.Loader;
 using MyFirstStarMod.StateMachine;
+using MyFirstStarMod.StateMachine.State;
 using MyFirstStarMod.Timing;
 using MyFirstStarMod.Utils;
 using IUpdateable = MyFirstStarMod.Internal.IUpdateable;
@@ -48,6 +49,22 @@ namespace MyFirstStarMod.AI
                 && lovePeaceController.IsLovedMonster(monster);
         }
 
+        public static void setNpcStateMachine(string npcName, CompanionManager companionManager, IModEvents gameEvents, IMonitor monitor)
+        {
+            // CompanionStateMachine csm = new CompanionStateMachine(npcName, this, new CompanionMetaData(dispositions[npcName]), loader, reflection, this.monitor);
+            CompanionStateMachine csm = new CompanionStateMachine(npcName, companionManager, monitor);
+            Dictionary<CompanionStateMachine.StateFlag, ICompanionState> stateHandlers = new Dictionary<CompanionStateMachine.StateFlag, ICompanionState>()
+            {
+                [CompanionStateMachine.StateFlag.RESET] = new ResetState(csm, gameEvents, monitor),
+                [CompanionStateMachine.StateFlag.AVAILABLE] = new AvailableState(csm, gameEvents, monitor),
+                [CompanionStateMachine.StateFlag.RECRUITED] = new RecruitedState(csm, gameEvents, monitor),
+                [CompanionStateMachine.StateFlag.UNAVAILABLE] = new UnavailableState(csm, gameEvents, monitor),
+            };
+
+            csm.Setup(stateHandlers);
+            companionManager.PossibleCompanions.Add(npcName, csm);
+        }
+
         // private readonly CompanionDisplay hud;
         private readonly IModEvents events;
         internal IMonitor Monitor { get; private set; }
@@ -62,7 +79,7 @@ namespace MyFirstStarMod.AI
             this.Monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
             this.Csm = csm ?? throw new ArgumentNullException(nameof(csm));
             // this.hud = hud ?? throw new ArgumentNullException(nameof(hud));
-            this.loader = csm.ContentLoader;
+            // this.loader = csm.ContentLoader;
             this.npc = csm.Companion;
             this.farmer = csm.CompanionManager.Farmer;
         }
@@ -71,7 +88,7 @@ namespace MyFirstStarMod.AI
         internal IController CurrentController { get => this.controllers[this.CurrentState]; }
 
         internal CompanionStateMachine Csm { get; }
-        public IContentLoader ContentLoader => this.Csm.ContentLoader;
+        // public IContentLoader ContentLoader => this.Csm.ContentLoader;
 
         public event EventHandler<EventArgsLocationChanged> LocationChanged;
 

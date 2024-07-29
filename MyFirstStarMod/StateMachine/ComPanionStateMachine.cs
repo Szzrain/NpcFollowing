@@ -31,31 +31,31 @@ namespace MyFirstStarMod.StateMachine
         }
         public CompanionManager CompanionManager { get; private set; }
         public NPC Companion { get; private set; }
-        public CompanionMetaData Metadata { get; }
-        public IContentLoader ContentLoader { get; private set; }
+        // public CompanionMetaData Metadata { get; }
+        // public IContentLoader ContentLoader { get; private set; }
         private IMonitor Monitor { get; }
         public Chest Bag { get; private set; }
-        public IReflectionHelper Reflection { get; }
+        // public IReflectionHelper Reflection { get; }
         public Dictionary<StateFlag, ICompanionState> States { get; private set; }
         private ICompanionState currentState;
         private readonly bool isVillager;
 
-        public CompanionStateMachine(CompanionManager manager, NPC companion, CompanionMetaData metadata, IContentLoader loader, IReflectionHelper reflection, IMonitor monitor = null)
+        public CompanionStateMachine(CompanionManager manager, NPC companion, IMonitor monitor = null)
         {
             this.isVillager = false;
             this.Name = companion?.Name;
             this.CompanionManager = manager;
             this.Companion = companion;
-            this.Metadata = metadata;
-            this.ContentLoader = loader;
+            // this.Metadata = metadata;
+            // this.ContentLoader = loader;
             this.Monitor = monitor;
             this.Bag = new Chest();
-            this.Reflection = reflection;
+            // this.Reflection = reflection;
             this.SpokenDialogues = new HashSet<string>();
             // this.Dialogues = new DialogueProvider(this, loader);
         }
 
-        public CompanionStateMachine(string name, CompanionManager manager, CompanionMetaData metadata, IContentLoader loader, IReflectionHelper reflection, IMonitor monitor = null) : this(manager, null, metadata, loader, reflection, monitor)
+        public CompanionStateMachine(string name, CompanionManager manager, IMonitor monitor = null) : this(manager, null, monitor)
         {
             this.Name = name;
             this.isVillager = true;
@@ -199,21 +199,21 @@ namespace MyFirstStarMod.StateMachine
                 return false; 
             }
 
-            if (!string.IsNullOrEmpty(this.Metadata.Availability))
-            {
-                // bool canBeAvailable = this.CompanionManager
-                //     .EPU
-                //     .CheckConditions(this.Metadata.Availability.Replace(';', '/'));
-                bool canBeAvailable = true;
-
-                if (!canBeAvailable)
-                    this.Monitor.Log($"Availability condition `{this.Metadata.Availability}` is not met for '{this.Name}'. Companion is unavailable for recruit.");
-                else
-                {
-                    this.Monitor.Log($"{this.Name} can be available today for recruit.");
-                }
-                return canBeAvailable;
-            }
+            // if (!string.IsNullOrEmpty(this.Metadata.Availability))
+            // {
+            //     // bool canBeAvailable = this.CompanionManager
+            //     //     .EPU
+            //     //     .CheckConditions(this.Metadata.Availability.Replace(';', '/'));
+            //     bool canBeAvailable = true;
+            //
+            //     if (!canBeAvailable)
+            //         this.Monitor.Log($"Availability condition `{this.Metadata.Availability}` is not met for '{this.Name}'. Companion is unavailable for recruit.");
+            //     else
+            //     {
+            //         this.Monitor.Log($"{this.Name} can be available today for recruit.");
+            //     }
+            //     return canBeAvailable;
+            // }
 
             return true;
         }
@@ -228,7 +228,7 @@ namespace MyFirstStarMod.StateMachine
             Package dumpedBag = new Package(this.Bag.Items.ToList(), place)
             {
                 GivenFrom = this.Name,
-                Message = this.ContentLoader.LoadString($"Strings/Mail:bagItemsSentLetter.{this.Companion.Name}", this.CompanionManager.Farmer.Name, this.Companion.displayName)
+                // Message = this.ContentLoader.LoadString($"Strings/Mail:bagItemsSentLetter.{this.Companion.Name}", this.CompanionManager.Farmer.Name, this.Companion.displayName)
             };
 
             farm.objects.Add(place, dumpedBag);
@@ -267,7 +267,8 @@ namespace MyFirstStarMod.StateMachine
         /// <returns>True if companion has this skill, otherwise False</returns>
         public bool HasSkill(string skill)
         {
-            return this.Metadata.PersonalSkills.Contains(skill);
+            // return this.Metadata.PersonalSkills.Contains(skill);
+            return false;
         }
 
         /// <summary>
@@ -389,7 +390,7 @@ namespace MyFirstStarMod.StateMachine
             this.States = null;
             this.Companion = null;
             this.CompanionManager = null;
-            this.ContentLoader = null;
+            // this.ContentLoader = null;
         }
 
         /// <summary>

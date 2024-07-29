@@ -1,7 +1,9 @@
 ﻿using System;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
+using MyFirstStarMod.Model;
 using MyFirstStarMod.Movement;
+using MyFirstStarMod.StateMachine;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
@@ -15,6 +17,7 @@ namespace MyFirstStarMod
     internal sealed class ModEntry : Mod
     {
         public static Dictionary<Farmer, Dictionary<NPC, NpcMovementController>> following_npcs = new Dictionary<Farmer, Dictionary<NPC, NpcMovementController>>();
+        public static CompanionManager companionManager;
         /*********
          ** Public methods
          *********/
@@ -40,6 +43,7 @@ namespace MyFirstStarMod
                 original: AccessTools.Method(typeof(NPC), nameof(NPC.checkAction)),
                 prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Prefix))
             );
+            companionManager = new CompanionManager(this.Monitor);
             helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
         }
         static void set_follow_schedule(NPC npc, Farmer farmer)
@@ -54,24 +58,7 @@ namespace MyFirstStarMod
         {
             if (!Context.IsWorldReady)
                 return;
-            if (e.IsMultipleOf(15))
-            {
-                foreach (var pair in following_npcs)
-                {
-                    Farmer farmer = pair.Key;
-                    foreach (var npcAndControllorPair in pair.Value)
-                    {
-                        NPC npc = npcAndControllorPair.Key;
-                        NpcMovementController controller = npcAndControllorPair.Value;
-                        if (npc.currentLocation != farmer.currentLocation)
-                        {
-                            Game1.warpCharacter(npc, farmer.currentLocation, farmer.TilePoint.ToVector2());
-                        }
-                        controller.AcquireTarget(farmer.TilePoint.ToVector2());
-                        controller.Update(e);
-                    }
-                }
-            }
+            
         }
         
         internal class ObjectPatches
@@ -113,20 +100,13 @@ namespace MyFirstStarMod
                             __instance.doEmote(20); 
                             if (ModEntry.following_npcs.ContainsKey(who))
                             {
-                                if (!ModEntry.following_npcs[who].ContainsKey(__instance))
-                                {
-                                    ModEntry.following_npcs[who].Add(__instance, new NpcMovementController(__instance, new PathFinder(l, __instance, who)));
-                                    set_follow_schedule(__instance, who);
-                                } 
-                                else 
-                                {
-                                    ModEntry.following_npcs[who].Remove(__instance);
-                                }
+                                
                             } 
                             else 
                             {
-                                ModEntry.following_npcs.Add(who, new Dictionary<NPC, NpcMovementController>() { { __instance, new NpcMovementController(__instance, new PathFinder(l, __instance, who)) } });
-                                set_follow_schedule(__instance, who);
+                                ModEntry.companionManager.PossibleCompanions.Add(__instance.Name, new CompanionStateMachine(__instance.Name, companionManager, Monitor));
+                                Monitor.Log($"Added {__instance.Name} to possible companions.", LogLevel.Info);
+                                ModEntry.companionManager.PossibleCompanions[__instance.Name].Setup(new Dictionary<CompanionStateMachine.StateFlag, ICompanionState>());
                             }
                             
                             return false;

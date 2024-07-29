@@ -23,8 +23,8 @@ namespace MyFirstStarMod.AI.Controller
         public LovePeaceController(AI_StateMachine ai, IModEvents events) : base(ai)
         {
             this.lovedMonsters = new List<LovedMonster>();
-            this.loveTexture = Game1.content.Load<Texture2D>(ai.ContentLoader.GetAssetKey("~/Sprites/love.png"));
-            this.bubbles = this.ai.ContentLoader.LoadStrings("Strings/SpeechBubbles");
+            // this.loveTexture = Game1.content.Load<Texture2D>(ai.ContentLoader.GetAssetKey("~/Sprites/love.png"));
+            // this.bubbles = this.ai.ContentLoader.LoadStrings("Strings/SpeechBubbles");
             this.events = events;
 
             events.Player.Warped += this.Player_Warped;

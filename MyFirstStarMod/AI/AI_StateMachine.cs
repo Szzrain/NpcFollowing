@@ -49,22 +49,6 @@ namespace MyFirstStarMod.AI
                 && lovePeaceController.IsLovedMonster(monster);
         }
 
-        public static void setNpcStateMachine(string npcName, CompanionManager companionManager, IModEvents gameEvents, IMonitor monitor)
-        {
-            // CompanionStateMachine csm = new CompanionStateMachine(npcName, this, new CompanionMetaData(dispositions[npcName]), loader, reflection, this.monitor);
-            CompanionStateMachine csm = new CompanionStateMachine(npcName, companionManager, monitor);
-            Dictionary<CompanionStateMachine.StateFlag, ICompanionState> stateHandlers = new Dictionary<CompanionStateMachine.StateFlag, ICompanionState>()
-            {
-                [CompanionStateMachine.StateFlag.RESET] = new ResetState(csm, gameEvents, monitor),
-                [CompanionStateMachine.StateFlag.AVAILABLE] = new AvailableState(csm, gameEvents, monitor),
-                [CompanionStateMachine.StateFlag.RECRUITED] = new RecruitedState(csm, gameEvents, monitor),
-                [CompanionStateMachine.StateFlag.UNAVAILABLE] = new UnavailableState(csm, gameEvents, monitor),
-            };
-
-            csm.Setup(stateHandlers);
-            companionManager.PossibleCompanions.Add(npcName, csm);
-        }
-
         // private readonly CompanionDisplay hud;
         private readonly IModEvents events;
         internal IMonitor Monitor { get; private set; }

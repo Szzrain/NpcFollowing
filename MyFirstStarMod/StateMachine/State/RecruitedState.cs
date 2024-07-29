@@ -210,10 +210,11 @@ namespace MyFirstStarMod.StateMachine.State
         /// <param name="time">Current time</param>
         private void UpdateFriendship(int time)
         {
-            if (time % 100 != 0 || !this.StateMachine.CompanionManager.Config.AllowGainFriendship)
-            {
-                return; // It's not whole hour? Or gain friendship is disabled? Do nothing!
-            }
+            return;
+            // if (time % 100 != 0 || !this.StateMachine.CompanionManager.Config.AllowGainFriendship)
+            // {
+            //     return; // It's not whole hour? Or gain friendship is disabled? Do nothing!
+            // }
 
             var farmer = this.StateMachine.CompanionManager.Farmer;
             var npc = this.StateMachine.Companion;

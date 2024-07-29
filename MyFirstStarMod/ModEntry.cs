@@ -4,6 +4,8 @@ using Microsoft.Xna.Framework;
 using MyFirstStarMod.Model;
 using MyFirstStarMod.Movement;
 using MyFirstStarMod.StateMachine;
+using MyFirstStarMod.StateMachine.State;
+using MyFirstStarMod.Utils;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
@@ -18,6 +20,7 @@ namespace MyFirstStarMod
     {
         public static Dictionary<Farmer, Dictionary<NPC, NpcMovementController>> following_npcs = new Dictionary<Farmer, Dictionary<NPC, NpcMovementController>>();
         public static CompanionManager companionManager;
+        public static IModHelper ModHelper;
         /*********
          ** Public methods
          *********/
@@ -27,6 +30,7 @@ namespace MyFirstStarMod
         {
             // helper.Events.Input.ButtonPressed += this.OnButtonPressed;
             var harmony = new Harmony(ModManifest.UniqueID);
+            ModHelper = helper;
             
             this.Monitor.Log("Hello world!", LogLevel.Debug);
             // patch the game
@@ -52,6 +56,22 @@ namespace MyFirstStarMod
             npc.controller = null;
             npc.followSchedule = false;
             // npc.speed = farmer.speed;
+        }
+        
+        public static void setNpcStateMachine(NPC npc, CompanionManager companionManager, IModEvents gameEvents, IMonitor monitor)
+        {
+            // CompanionStateMachine csm = new CompanionStateMachine(npcName, this, new CompanionMetaData(dispositions[npcName]), loader, reflection, this.monitor);
+            CompanionStateMachine csm = new CompanionStateMachine(ModEntry.companionManager, npc, monitor);
+            Dictionary<CompanionStateMachine.StateFlag, ICompanionState> stateHandlers = new Dictionary<CompanionStateMachine.StateFlag, ICompanionState>()
+            {
+                [CompanionStateMachine.StateFlag.RESET] = new ResetState(csm, gameEvents, monitor),
+                [CompanionStateMachine.StateFlag.AVAILABLE] = new AvailableState(csm, gameEvents, monitor),
+                [CompanionStateMachine.StateFlag.RECRUITED] = new RecruitedState(csm, gameEvents, monitor),
+                [CompanionStateMachine.StateFlag.UNAVAILABLE] = new UnavailableState(csm, gameEvents, monitor),
+            };
+
+            csm.Setup(stateHandlers);
+            companionManager.PossibleCompanions.Add(npc.Name, csm);
         }
         
         private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
@@ -104,9 +124,12 @@ namespace MyFirstStarMod
                             } 
                             else 
                             {
-                                ModEntry.companionManager.PossibleCompanions.Add(__instance.Name, new CompanionStateMachine(__instance.Name, companionManager, Monitor));
                                 Monitor.Log($"Added {__instance.Name} to possible companions.", LogLevel.Info);
-                                ModEntry.companionManager.PossibleCompanions[__instance.Name].Setup(new Dictionary<CompanionStateMachine.StateFlag, ICompanionState>());
+                                __instance.ClearSchedule();
+                                __instance.followSchedule = false;
+                                setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
+                                companionManager.PossibleCompanions[__instance.Name].Recruit();
+                                ModEntry.following_npcs[who] = new Dictionary<NPC, NpcMovementController>();
                             }
                             
                             return false;

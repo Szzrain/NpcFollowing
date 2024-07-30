@@ -1,4 +1,4 @@
 {
-  "CPMyFirstStarMod.object.debug.dog.name": "调试狗",
-  "CPMyFirstStarMod.object.debug.dog.description": "调试用调试狗"
+  "CPMyFirstStarMod.object.debug.dog.name": "控制棒",
+  "CPMyFirstStarMod.object.debug.dog.description": "对NPC使用可以让他们跟随你"
 }

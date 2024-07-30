@@ -46,7 +46,7 @@ namespace NpcFollowing.StateMachine.State
                 this.recruitRequestsEnabled = true;
 
             int heartLevel = this.StateMachine.CompanionManager.Farmer.getFriendshipHeartLevelForNPC(this.StateMachine.Companion.Name);
-            int threshold = this.StateMachine.CompanionManager.Config.HeartSuggestThreshold;
+            // int threshold = this.StateMachine.CompanionManager.Config.HeartSuggestThreshold;
             bool married = Helper.IsSpouseMarriedToFarmer(this.StateMachine.Companion, this.StateMachine.CompanionManager.Farmer);
             bool matchesTimeRange = e.NewTime < 2200 && e.NewTime > (married ? 800 : 1000);
 
@@ -55,7 +55,7 @@ namespace NpcFollowing.StateMachine.State
                 && this.CanPerformAction
                 && matchesTimeRange
                 && this.suggestionDialogue == null
-                && heartLevel >= threshold
+                // && heartLevel >= threshold
                 && Game1.random.NextDouble() < this.GetSuggestChance())
             {
                 Dialogue d = null;

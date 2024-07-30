@@ -38,7 +38,7 @@ namespace NpcFollowing
         }
 
         // public CompanionDisplay Hud { get; }
-        public Config Config { get; }
+        // public Config Config { get; }
 
         public Farmer Farmer
         {

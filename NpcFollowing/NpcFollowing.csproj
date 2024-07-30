@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <EnableHarmony>true</EnableHarmony>
-        <RootNamespace>MyFirstStarMod</RootNamespace>
+        <RootNamespace>NpcFollowing</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

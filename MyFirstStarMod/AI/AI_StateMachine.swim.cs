@@ -9,6 +9,7 @@ namespace MyFirstStarMod.AI
     {
         bool swimsuit = false;
         bool swimming = false;
+        bool alreadyInAction = false;
 
         /// <summary>
         /// Check if following companion switch to swim mode or back to walk
@@ -37,15 +38,35 @@ namespace MyFirstStarMod.AI
                     this.ChangeOutOfSwimsuit();
                     break;
                 case "PoolEntrance":
-                    this.SwitchToSwimming(location);
+                    if (alreadyInAction)
+                    {
+                        return;
+                    }
+                    alreadyInAction = true;
+                    this.SwitchSwimming(location);
                     break;
                 case "PoolExit":
-                    this.SwitchToWalking(location);
+                    this.TriggerSwitchToWalking(location);
+                    break;
+                default:
+                    alreadyInAction = false;
                     break;
             }
         }
 
-        public void SwitchToSwimming(GameLocation location)
+        public void SwitchSwimming(GameLocation location)
+        {
+            if (this.npc.swimming.Value)
+            {
+                TriggerSwitchToWalking(location);
+            }
+            else
+            {
+                TriggerSwitchToSwimming(location);
+            }
+        }
+        
+        public void TriggerSwitchToSwimming(GameLocation location)
         {
             if (this.npc.swimming.Value)
                 return;
@@ -56,7 +77,7 @@ namespace MyFirstStarMod.AI
             location.playSound("pullItemFromWater");
         }
 
-        public void SwitchToWalking(GameLocation location)
+        public void TriggerSwitchToWalking(GameLocation location)
         {
             if (!this.npc.swimming.Value)
                 return;
@@ -65,7 +86,8 @@ namespace MyFirstStarMod.AI
 
             this.npc.jump();
             this.npc.swimTimer = 800;
-            this.npc.position.X = position.X * 64f;
+            this.npc.position.Y -= 16f;
+            // this.npc.position.X = position.X * 64f;
             this.npc.swimming.Value = false;
             location.playSound("pullItemFromWater");
         }

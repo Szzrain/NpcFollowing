@@ -1,0 +1,10 @@
+{
+  "Name": "NPC Following",
+  "Author": "Szzrain",
+  "Version": "1.0.0",
+  "Description": "This mod allows you to have a NPC following you.",
+  "UniqueID": "com.szzrain.npc_following",
+  "EntryDll": "NpcFollowing.dll",
+  "MinimumApiVersion": "4.0.8",
+  "UpdateKeys": []
+}

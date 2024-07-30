@@ -22,7 +22,10 @@
           "CanBePlacedOutdoors": true,
           "ExcludeFromFishingCollection": true,
           "ExcludeFromShippingCollection": true,
-          "ExcludeFromRandomSale": true
+          "ExcludeFromRandomSale": true,
+          "ContextTags": [
+            "not_giftable"
+          ]
         }
       }
     }

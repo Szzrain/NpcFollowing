@@ -164,12 +164,12 @@ namespace MyFirstStarMod
         /// <param name="companionName">NPC name of companion</param>
         internal void CompanionRecuited(string companionName)
         {
-            foreach (var csmKv in this.PossibleCompanions)
-            {
-                // All other companions are unavailable now (Player can't recruit them right now)
-                if (csmKv.Value.Name != companionName)
-                    csmKv.Value.MakeUnavailable();
-            }
+            // foreach (var csmKv in this.PossibleCompanions)
+            // {
+            //     // All other companions are unavailable now (Player can't recruit them right now)
+            //     if (csmKv.Value.Name != companionName)
+            //         csmKv.Value.MakeUnavailable();
+            // }
 
             // this.GameMaster.SendEventMessage(new RecruitMessage(companionName));
             this.monitor.Log($"You are recruited {companionName} companion.");

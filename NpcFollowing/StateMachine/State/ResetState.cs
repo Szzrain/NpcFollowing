@@ -71,8 +71,8 @@ namespace NpcFollowing.StateMachine.State
 
             Game1.fadeScreenToBlack();
             companion.faceTowardFarmerTimer = 0;
-            // this.DelayedWarp(this.companionRescheduleDestinationLocation,
-            //     this.companionRescheduleDestinationPoint, 500, new Action(this.CompanionEndCleanup));
+            this.DelayedWarp(this.companionRescheduleDestinationLocation,
+                this.companionRescheduleDestinationPoint, 500, new Action(this.CompanionEndCleanup));
         }
 
         private Dictionary<int, SchedulePathDescription> GetCompanionSchedule(int dayOfMonth)
@@ -436,7 +436,7 @@ namespace NpcFollowing.StateMachine.State
         {
             NPC companion = this.StateMachine.Companion;
 
-            typeof(NPC).GetField("previousEndPoint", BindingFlags.NonPublic | BindingFlags.Instance)
+            typeof(NPC).GetField("previousEndPoint", BindingFlags.NonPublic | BindingFlags.Instance)?
                 .SetValue(companion, companion.Tile.ToPoint());
             companion.checkSchedule(Game1.timeOfDay);
 
@@ -451,7 +451,7 @@ namespace NpcFollowing.StateMachine.State
             }
             // if (this.companionRescheduleEndRouteDialogue != null && this.companionRescheduleEndRouteDialogue != "")
             //     companion.CurrentDialogue.Push(new Dialogue(Game1.content.LoadString(this.companionRescheduleEndRouteDialogue), companion));
-            // companion.faceDirection(this.companionRescheduleFacingDirection);
+            companion.faceDirection(this.companionRescheduleFacingDirection);
 
             if (companion.Schedule == null && this.StateMachine.CompanionManager.Farmer.spouse != null &&
                 this.StateMachine.CompanionManager.Farmer.spouse.Equals(companion.Name))

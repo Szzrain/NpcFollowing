@@ -1,0 +1,6 @@
+{
+  "NpcFollowing.object.debug.stick.name": "Debug Stick",
+  "NpcFollowing.object.debug.stick.description": "Debug item: Use on NPC to make them follow you, use again to dismiss",
+  "NpcFollowing.dialogue.follow_request.accept": "okay, Let's go!",
+  "NpcFollowing.dialogue.follow_request.reject": "nope, sorry"
+}

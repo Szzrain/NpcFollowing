@@ -109,7 +109,7 @@ namespace NpcFollowing
                 int dayOfMonth = Game1.dayOfMonth;
                 string key = Game1.shortDayNameFromDayOfSeason(dayOfMonth);
                 try {
-                    Monitor.Log($"Called TryLoadSchedule for {__instance.Name}.", LogLevel.Debug);
+                    Monitor.Log($"Called TryLoadSchedule for {__instance.Name} at {key}", LogLevel.Debug);
                     return true;
                 } catch (Exception ex) {
                     Monitor.Log($"Failed in {nameof(TryLoadSchedule_Prefix)}:\n{ex}", LogLevel.Error);
@@ -123,10 +123,10 @@ namespace NpcFollowing
                 try
                 {
                     Monitor.Log($"Called checkAction for {__instance.Name}. With Farmer {who.Name} at Location: {l.Name} ", LogLevel.Debug);
-                    Monitor.Log($"CurrentPlayer active object is ({who.ActiveObject?.name})[{who.ActiveObject?.displayName}] ID: {who.ActiveObject?.QualifiedItemId}", LogLevel.Debug);
+                    Monitor.Log($"CurrentPlayer active object is ({who.ActiveObject?.name})[{who.ActiveObject?.displayName}] ID: {who.ActiveObject?.QualifiedItemId} Category: {who.ActiveObject?.category.Value}", LogLevel.Debug);
                     switch (who.ActiveObject?.QualifiedItemId)
                     {
-                        case "(O)szzrain.CPMyFirstMod.debug.dog":
+                        case "(O)szzrain.NpcFollowing.object.debug.stick":
                             Monitor.Log("Dog object use detected.", LogLevel.Info);
                             __instance.doEmote(20); 
                             if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
@@ -167,11 +167,14 @@ namespace NpcFollowing
                     {
                         Monitor.Log($"Found Available Companions", LogLevel.Info);
                         CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
+                        s.IsKissedEarly = __instance.hasBeenKissedToday.Value;
                         Monitor.Log($"Current State: {s.CurrentStateFlag}", LogLevel.Info);
                     } 
                     else 
                     {
-                        Monitor.Log($"Not Available Companions", LogLevel.Info);
+                        Monitor.Log($"Not Available Companions, adding", LogLevel.Info);
+                        setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
+                        companionManager.PossibleCompanions[__instance.Name].ChangeState(CompanionStateMachine.StateFlag.AVAILABLE);
                     }
                     return true;
                 }
@@ -184,7 +187,7 @@ namespace NpcFollowing
 
             internal static void NPC_checkAction_Postfix(NPC __instance, Farmer who, GameLocation l)
             {
-                if (who.ActiveObject?.QualifiedItemId == "(O)szzrain.CPMyFirstMod.debug.dog")
+                if (who.ActiveObject?.QualifiedItemId == "(O)szzrain.NpcFollowing.object.debug.stick")
                 {
                     return;
                 }
@@ -192,12 +195,15 @@ namespace NpcFollowing
                 {
                     if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
                     {
-                        Monitor.Log("Check action: NPC is following player.", LogLevel.Info);
-                        if (__instance.isMarried() && __instance.getSpouse() == who && !__instance.hasBeenKissedToday.Value)
+                        Monitor.Log("Check action: NPC can following player.", LogLevel.Info);
+                        CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
+                        if (__instance.isMarried() && __instance.getSpouse() == who 
+                            && (!__instance.hasBeenKissedToday.Value) || ( __instance.hasBeenKissedToday.Value && !s.IsKissedEarly))
                         {
+                            s.IsKissedEarly = false;
                             Monitor.Log($"Kissing {__instance.Name}.", LogLevel.Info);
                         }
-                        else
+                        else if (__instance.isMarried() && __instance.getSpouse() == who)
                         {
                             companionManager.CheckAction(who, __instance, l);
                         }

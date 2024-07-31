@@ -1,0 +1,6 @@
+{
+  "NpcFollowing.object.debug.stick.name": "调试棒",
+  "NpcFollowing.object.debug.stick.description": "调试用物品：对NPC使用可以让他们变为可选随从并跟随你，再次使用解除",
+  "NpcFollowing.dialogue.follow_request.accept": "好的，我们走吧！",
+  "NpcFollowing.dialogue.follow_request.reject": "不好意思，我现在不能跟随你"
+}

@@ -140,7 +140,7 @@ namespace NpcFollowing.StateMachine.State
 
         private void ReactOnAnswer(NPC n, Farmer leader)
         {
-            if (leader.getFriendshipHeartLevelForNPC(n.Name) < 8 || Game1.timeOfDay >= 2200)
+            if (leader.getFriendshipHeartLevelForNPC(n.Name) < 10 || Game1.timeOfDay >= 2200)
             {
                 // Dialogue rejectionDialogue = new Dialogue(
                 //     this.StateMachine.Dialogues.GetFriendSpecificDialogueText(
@@ -150,6 +150,10 @@ namespace NpcFollowing.StateMachine.State
                 //
                 // this.rejectionDialogue = rejectionDialogue;
                 // DialogueProvider.DrawDialogue(rejectionDialogue);
+                this.StateMachine.MakeUnavailable();
+                Dialogue rejectalDialogue = new Dialogue(n, "Data/ExtraDialogue:follow_request_reject");
+                this.rejectionDialogue = rejectalDialogue;
+                Game1.DrawDialogue(this.rejectionDialogue);
             }
             else
             {

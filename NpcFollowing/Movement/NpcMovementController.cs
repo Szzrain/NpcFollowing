@@ -179,7 +179,7 @@ namespace NpcFollowing.Movement
                 this.animationUpdateSum += new Vector2(this.follower.xVelocity, -this.follower.yVelocity);
                 this.AnimationSubUpdate();
 
-                this.follower.MovePosition(Game1.currentGameTime, Game1.viewport, this.follower.currentLocation); // Update follower movement
+                // this.follower.MovePosition(Game1.currentGameTime, Game1.viewport, this.follower.currentLocation); // Update follower movement
                 this.ApplyVelocity(this.follower.currentLocation);
                 this.lastMovementDirection = this.lastFrameVelocity / this.lastFrameVelocity.Length();
 

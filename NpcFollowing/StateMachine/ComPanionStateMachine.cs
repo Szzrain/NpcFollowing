@@ -39,6 +39,7 @@ namespace NpcFollowing.StateMachine
         public Dictionary<StateFlag, ICompanionState> States { get; private set; }
         private ICompanionState currentState;
         private readonly bool isVillager;
+        public bool IsKissedEarly { get; set; }
 
         public CompanionStateMachine(CompanionManager manager, NPC companion, IMonitor monitor = null)
         {
@@ -98,7 +99,7 @@ namespace NpcFollowing.StateMachine
         /// Change companion state machine state
         /// </summary>
         /// <param name="stateFlag">Flag of allowed state</param>
-        private void ChangeState(StateFlag stateFlag)
+        public void ChangeState(StateFlag stateFlag)
         {
             if (this.States == null)
                 throw new InvalidStateException($"State machine for companion '{this.Name}' is not ready! Call setup first.");

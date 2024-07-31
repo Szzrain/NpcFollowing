@@ -1,6 +1,0 @@
-{
-  "CPMyFirstStarMod.object.debug.dog.name": "Debug Stick",
-  "CPMyFirstStarMod.object.debug.dog.description": "Debug item: Use on NPC to make them follow you",
-  "NpcFollowing.dialogue.follow_request.accept": "okay, Let's go!",
-  "NpcFollowing.dialogue.follow_request.reject": "nope, sorry"
-}

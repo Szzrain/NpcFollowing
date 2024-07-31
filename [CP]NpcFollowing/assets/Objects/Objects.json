@@ -3,8 +3,8 @@
     {
       "Action": "Load",
       "Priority": "Low",
-      "Target": "Mods/szzrain/debug.dog",
-      "FromFile": "assets/texture/dog.png"
+      "Target": "Mods/szzrain/debug.stick",
+      "FromFile": "assets/texture/debug_stick.png"
     },
     {
       "Action": "EditData",
@@ -18,13 +18,13 @@
       "Action": "EditData",
       "Target": "Data/Objects",
       "Entries": {
-        "szzrain.CPMyFirstMod.debug.dog": {
-          "Name": "CPMyFirstStarMod.object.debug.dog",
-          "DisplayName": "{{i18n:CPMyFirstStarMod.object.debug.dog.name}}",
-          "Description": "{{i18n:CPMyFirstStarMod.object.debug.dog.description}}",
-          "Category": 20,
+        "szzrain.NpcFollowing.object.debug.stick": {
+          "Name": "NpcFollowing.object.debug.stick",
+          "DisplayName": "{{i18n:NpcFollowing.object.debug.stick.name}}",
+          "Description": "{{i18n:NpcFollowing.object.debug.stick.description}}",
+          "Category": 0,
           "Price": 300,
-          "Texture": "Mods\\szzrain\\debug.dog",
+          "Texture": "Mods\\szzrain\\debug.stick",
           "SpriteIndex": 0,
           "CanBePlacedIndoors": true,
           "CanBePlacedOutdoors": true,

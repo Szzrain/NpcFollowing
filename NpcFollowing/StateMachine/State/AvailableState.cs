@@ -2,11 +2,12 @@
 using StardewValley;
 using StardewModdingAPI;
 using System.Collections.Generic;
+using NpcFollowing.StateMachine.StateFeatures;
 using NpcFollowing.Utils;
 
 namespace NpcFollowing.StateMachine.State
 {
-    internal class AvailableState : CompanionState
+    internal class AvailableState : CompanionState, IActionPerformer
     {
         private Dialogue acceptalDialogue;
         private Dialogue rejectionDialogue;
@@ -139,30 +140,33 @@ namespace NpcFollowing.StateMachine.State
 
         private void ReactOnAnswer(NPC n, Farmer leader)
         {
-            // if (leader.getFriendshipHeartLevelForNPC(n.Name) < this.StateMachine.CompanionManager.Config.HeartThreshold || Game1.timeOfDay >= 2200)
-            // {
-            //     Dialogue rejectionDialogue = new Dialogue(
-            //         this.StateMachine.Dialogues.GetFriendSpecificDialogueText(
-            //             leader, Game1.timeOfDay >= 2200 ? "companionRejectedNight" : "companionRejected"), n);
-            //
-            //     this.rejectionDialogue = rejectionDialogue;
-            //     DialogueProvider.DrawDialogue(rejectionDialogue);
-            // }
-            // else
-            // {
-            //     Dialogue acceptalDialogue = new Dialogue(
-            //         this.StateMachine.Dialogues.GetFriendSpecificDialogueText(leader, "companionAccepted"), n);
-            //
-            //     this.acceptalDialogue = acceptalDialogue;
-            //     DialogueProvider.DrawDialogue(acceptalDialogue);
-            // }
+            if (leader.getFriendshipHeartLevelForNPC(n.Name) < 8 || Game1.timeOfDay >= 2200)
+            {
+                // Dialogue rejectionDialogue = new Dialogue(
+                //     this.StateMachine.Dialogues.GetFriendSpecificDialogueText(
+                //         leader, Game1.timeOfDay >= 2200 ? "companionRejectedNight" : "companionRejected"), n);
+                // Dialogue rejectionDialogue = new Dialogue(
+                //      n, "NpcFollowing.dialogue.follow_request.reject");
+                //
+                // this.rejectionDialogue = rejectionDialogue;
+                // DialogueProvider.DrawDialogue(rejectionDialogue);
+            }
+            else
+            {
+                Dialogue acceptalDialogue = new Dialogue(n, "Data/ExtraDialogue:follow_request_accept");
+                this.acceptalDialogue = acceptalDialogue;
+                // n.CurrentDialogue.Push(acceptalDialogue);
+                Game1.DrawDialogue(this.acceptalDialogue);
+                this.StateMachine.Recruit();
+            }
         }
 
         public bool PerformAction(Farmer who, GameLocation location)
         {
+            this.StateMachine.Monitor.Log("Performing action in `AVAILABLE` state", LogLevel.Debug);
             NPC companion = this.StateMachine.Companion;
             // string question = this.StateMachine.ContentLoader.LoadString("Strings/Strings:askToFollow", companion.displayName);
-            string question = "Do you want to follow me?";
+            string question = $"是否请求{this.StateMachine.Companion.displayName}跟随你一起冒险？";
             if (companion.isMoving())
             {
                 companion.Halt();

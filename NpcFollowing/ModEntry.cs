@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Xml.Serialization;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
+using NpcFollowing.Driver;
 using NpcFollowing.Model;
 using NpcFollowing.Movement;
+using NpcFollowing.Objects;
 using NpcFollowing.Utils;
 using NpcFollowing.StateMachine;
 using NpcFollowing.StateMachine.State;
@@ -10,7 +13,9 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
 using StardewValley;
+using StardewValley.Locations;
 using StardewValley.Menus;
+using StardewValley.Objects;
 using StardewValley.Pathfinding;
 
 namespace NpcFollowing
@@ -18,9 +23,9 @@ namespace NpcFollowing
     /// <summary>The mod entry point.</summary>
     internal sealed class ModEntry : Mod
     {
-        public static Dictionary<Farmer, List<NPC>> following_npcs = new Dictionary<Farmer, List<NPC>>();
         public static CompanionManager companionManager;
         public static IModHelper ModHelper;
+        private StuffDriver StuffDriver { get; set; }
         /*********
          ** Public methods
          *********/
@@ -45,10 +50,14 @@ namespace NpcFollowing
             );
             harmony.Patch(
                 original: AccessTools.Method(typeof(NPC), nameof(NPC.checkAction)),
-                prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Prefix))
+                prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Prefix)),
+                postfix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Postfix))
             );
             companionManager = new CompanionManager(this.Monitor);
-            helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
+            helper.Events.GameLoop.DayStarted += this.GameLoop_DayStarted;
+            helper.Events.GameLoop.DayEnding += this.GameLoop_DayEnding;
+            StuffDriver = new StuffDriver(helper.Data, this.Monitor);
+            StuffDriver.RegisterEvents(helper.Events);
         }
         
         public static void setNpcStateMachine(NPC npc, CompanionManager companionManager, IModEvents gameEvents, IMonitor monitor)
@@ -67,11 +76,20 @@ namespace NpcFollowing
             companionManager.PossibleCompanions.Add(npc.Name, csm);
         }
         
-        private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
+        private void GameLoop_DayStarted(object? sender, DayStartedEventArgs e)
         {
-            if (!Context.IsWorldReady)
+            if (Context.IsMultiplayer)
                 return;
-            
+            companionManager.NewDaySetup();
+        }
+
+        private void GameLoop_DayEnding(object? sender, DayEndingEventArgs e)
+        {
+            if (Context.IsMultiplayer)
+                return;
+
+            companionManager.ResetStateMachines();
+            companionManager.DumpCompanionNonEmptyBags();
         }
         
         internal class ObjectPatches
@@ -111,20 +129,19 @@ namespace NpcFollowing
                         case "(O)szzrain.CPMyFirstMod.debug.dog":
                             Monitor.Log("Dog object use detected.", LogLevel.Info);
                             __instance.doEmote(20); 
-                            if (ModEntry.following_npcs.ContainsKey(who))
+                            if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
                             {
-                                if (ModEntry.following_npcs[who].Contains(__instance))
+                                if (companionManager.PossibleCompanions[__instance.Name].CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED)
                                 {
                                     Monitor.Log($"Removed {__instance.Name} from possible companions.", LogLevel.Info);
                                     companionManager.PossibleCompanions[__instance.Name].Dismiss();
-                                    ModEntry.following_npcs[who].Remove(__instance);
                                 }
                                 else
                                 {
                                     Monitor.Log($"Added {__instance.Name} to possible companions.", LogLevel.Info);
                                     __instance.ClearSchedule();
                                     __instance.followSchedule = false;
-                                    if (ModEntry.companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                                    if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
                                     {
                                         Monitor.Log($"Companion already exists in possible companions, activating.", LogLevel.Info);
                                     }
@@ -133,7 +150,6 @@ namespace NpcFollowing
                                         setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
                                     }
                                     companionManager.PossibleCompanions[__instance.Name].Recruit();
-                                    ModEntry.following_npcs[who].Add(__instance);
                                 }
                             } 
                             else 
@@ -143,10 +159,19 @@ namespace NpcFollowing
                                 __instance.followSchedule = false;
                                 setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
                                 companionManager.PossibleCompanions[__instance.Name].Recruit();
-                                ModEntry.following_npcs[who] = new List<NPC> {__instance};
                             }
-                            
                             return false;
+                    }
+
+                    if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                    {
+                        Monitor.Log($"Found Available Companions", LogLevel.Info);
+                        CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
+                        Monitor.Log($"Current State: {s.CurrentStateFlag}", LogLevel.Info);
+                    } 
+                    else 
+                    {
+                        Monitor.Log($"Not Available Companions", LogLevel.Info);
                     }
                     return true;
                 }
@@ -155,9 +180,34 @@ namespace NpcFollowing
                     Monitor.Log($"Failed in {nameof(NPC_checkAction_Prefix)}:\n{ex}", LogLevel.Error);
                     return true;
                 }
-            
             }
 
+            internal static void NPC_checkAction_Postfix(NPC __instance, Farmer who, GameLocation l)
+            {
+                if (who.ActiveObject?.QualifiedItemId == "(O)szzrain.CPMyFirstMod.debug.dog")
+                {
+                    return;
+                }
+                try
+                {
+                    if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                    {
+                        Monitor.Log("Check action: NPC is following player.", LogLevel.Info);
+                        if (__instance.isMarried() && __instance.getSpouse() == who && !__instance.hasBeenKissedToday.Value)
+                        {
+                            Monitor.Log($"Kissing {__instance.Name}.", LogLevel.Info);
+                        }
+                        else
+                        {
+                            companionManager.CheckAction(who, __instance, l);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Monitor.Log($"Failed in {nameof(NPC_checkAction_Postfix)}:\n{e}", LogLevel.Error);
+                }
+            }
         }
 
         /*********

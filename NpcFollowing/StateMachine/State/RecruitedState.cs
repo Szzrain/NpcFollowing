@@ -9,6 +9,7 @@ using StardewValley.Objects;
 using System;
 using NpcFollowing.StateMachine;
 using NpcFollowing.AI;
+using NpcFollowing.StateMachine.StateFeatures;
 using NpcFollowing.Utils;
 using StardewModdingAPI;
 using StardewValley.Buffs;
@@ -16,7 +17,7 @@ using StardewValley.Monsters;
 
 namespace NpcFollowing.StateMachine.State
 {
-    internal class RecruitedState : CompanionState
+    internal class RecruitedState : CompanionState, IActionPerformer
     {
         private AI_StateMachine ai;
         private Dialogue dismissalDialogue;
@@ -150,7 +151,7 @@ namespace NpcFollowing.StateMachine.State
 
         private void GameLoop_TimeChanged(object sender, TimeChangedEventArgs e) 
         { 
-            // this.StateMachine.Companion.clearSchedule();
+            this.StateMachine.Companion.ClearSchedule();
             this.UpdateFriendship(e.NewTime);
 
             if (e.NewTime >= this.TimeToBye)
@@ -210,12 +211,14 @@ namespace NpcFollowing.StateMachine.State
         /// <param name="time">Current time</param>
         private void UpdateFriendship(int time)
         {
-            return;
             // if (time % 100 != 0 || !this.StateMachine.CompanionManager.Config.AllowGainFriendship)
             // {
             //     return; // It's not whole hour? Or gain friendship is disabled? Do nothing!
             // }
-
+            if (time % 100 != 0)
+            {
+                return; 
+            }
             var farmer = this.StateMachine.CompanionManager.Farmer;
             var npc = this.StateMachine.Companion;
             var points = 2;
@@ -370,7 +373,7 @@ namespace NpcFollowing.StateMachine.State
                 {
                     this.StateMachine.Companion.Halt();
                     this.StateMachine.Companion.facePlayer(who);
-                    this.ReactOnAsk(this.StateMachine.Companion, who, answer); ;
+                    this.ReactOnAsk(this.StateMachine.Companion, who, answer);
                 }
             }, this.StateMachine.Companion);
 
@@ -392,6 +395,7 @@ namespace NpcFollowing.StateMachine.State
                     //     this.StateMachine.Dialogues.GetFriendSpecificDialogueText(leader, "companionDismiss"), companion);
                     // this.dismissalDialogue = dismissalDialogue;
                     // DialogueProvider.DrawDialogue(dismissalDialogue);
+                    this.StateMachine.Dismiss();
                     break;
                 case "bag":
                     Chest bag = this.StateMachine.Bag;

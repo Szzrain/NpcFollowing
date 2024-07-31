@@ -7,19 +7,25 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 
 namespace NpcFollowing.Objects
 {
-    class Package : Chest
+    public class Package : Chest
     {
         public Package(List<Item> items, Vector2 location, int giftBoxIndex = 0, string message = null) : base(items, location, true, giftBoxIndex)
         {
             this.Message = message;
         }
-
+        
+        public Package() : base()
+        {
+        }
+        
         public string Message { get; internal set; }
+        
         public string GivenFrom { get; internal set; }
-
+        
         public override bool checkForAction(Farmer who, bool justCheckingForActivity = false)
         {
             if (justCheckingForActivity)

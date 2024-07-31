@@ -33,7 +33,7 @@ namespace NpcFollowing.StateMachine
         public NPC Companion { get; private set; }
         // public CompanionMetaData Metadata { get; }
         // public IContentLoader ContentLoader { get; private set; }
-        private IMonitor Monitor { get; }
+        public IMonitor Monitor { get; }
         public Chest Bag { get; private set; }
         // public IReflectionHelper Reflection { get; }
         public Dictionary<StateFlag, ICompanionState> States { get; private set; }
@@ -398,6 +398,7 @@ namespace NpcFollowing.StateMachine
         /// </summary>
         public bool CheckAction(Farmer who, GameLocation location)
         {
+            Monitor.Log($"CheckAction: {this.CanPerformAction()}");
             // Can this companion to resolve player's dialogue request?
             if (!this.CanPerformAction())
                 return false;

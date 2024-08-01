@@ -453,11 +453,11 @@ namespace NpcFollowing.StateMachine.State
             //     companion.CurrentDialogue.Push(new Dialogue(Game1.content.LoadString(this.companionRescheduleEndRouteDialogue), companion));
             companion.faceDirection(this.companionRescheduleFacingDirection);
 
-            if (companion.Schedule == null && this.StateMachine.CompanionManager.Farmer.spouse != null &&
-                this.StateMachine.CompanionManager.Farmer.spouse.Equals(companion.Name))
-            {
-                companion.marriageDuties();
-            }
+            // if (companion.Schedule == null && this.StateMachine.CompanionManager.Farmer.spouse != null &&
+            //     this.StateMachine.CompanionManager.Farmer.spouse.Equals(companion.Name))
+            // {
+            //     companion.marriageDuties();
+            // }
         }
     }
 }

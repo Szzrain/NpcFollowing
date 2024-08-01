@@ -273,7 +273,7 @@ namespace NpcFollowing.StateMachine.State
             npc.movementPause = 0;
             npc.followSchedule = false;
             npc.ignoreScheduleToday = true;
-            // npc.Schedule = null;
+            // npc.Schedule.Clear();
             npc.ClearSchedule();
             npc.faceTowardFarmerTimer = 0;
             npc.farmerPassesThrough = true;

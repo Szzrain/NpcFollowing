@@ -54,6 +54,10 @@ namespace NpcFollowing
                 prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Prefix)),
                 postfix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Postfix))
             );
+            harmony.Patch(
+                original: AccessTools.Method(typeof(Game1), nameof(Game1.warpCharacter), new Type[] { typeof(NPC), typeof(GameLocation), typeof(Vector2) }),
+                prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.Warp_Prefix))
+            );
             companionManager = new CompanionManager(helper, this.Monitor);
             Instance = this;
             helper.Events.GameLoop.DayStarted += this.GameLoop_DayStarted;
@@ -119,6 +123,19 @@ namespace NpcFollowing
                 }
             }
             
+            internal static bool Warp_Prefix(NPC character, GameLocation targetLocation, Vector2 position)
+            {
+                try
+                {
+                    Monitor.Log($"Called Warp for {character.Name}. With Location: {targetLocation.Name} at Position: {position.ToString()}", LogLevel.Debug);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Failed in {nameof(Warp_Prefix)}:\n{ex}", LogLevel.Error);
+                    return true;
+                }
+            }
 
             internal static bool NPC_checkAction_Prefix(NPC __instance, Farmer who, GameLocation l)
             {

@@ -8,6 +8,7 @@ using static NpcFollowing.StateMachine.CompanionStateMachine;
 using NpcFollowing.HUD;
 using NpcFollowing.Story;
 using System.Linq;
+using NpcFollowing.Driver;
 using NpcFollowing.Loader;
 using NpcFollowing.Model;
 using NpcFollowing.StateMachine;
@@ -19,7 +20,7 @@ namespace NpcFollowing
 {
     internal class CompanionManager
     {
-        // private readonly DialogueDriver dialogueDriver;
+        private readonly DialogueDriver dialogueDriver;
         // private readonly HintDriver hintDriver;
         private readonly IMonitor monitor;
 
@@ -65,10 +66,11 @@ namespace NpcFollowing
         //     this.hintDriver.CheckHint += this.HintDriver_CheckHint;
         // }
         
-        public CompanionManager(IMonitor monitor)
+        public CompanionManager(IModHelper helper, IMonitor monitor)
         {
+            helper = helper ?? throw new ArgumentNullException(nameof(helper));
             // this.GameMaster = gameMaster ?? throw new ArgumentNullException(nameof(gameMaster));
-            // this.dialogueDriver = dialogueDriver ?? throw new ArgumentNullException(nameof(dialogueDriver));
+            this.dialogueDriver = new DialogueDriver(helper.Events);
             // this.hintDriver = hintDriver ?? throw new ArgumentNullException(nameof(hintDriver));
             // this.Hud = hud ?? throw new ArgumentNullException(nameof(hud));
             this.monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));

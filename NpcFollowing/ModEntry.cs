@@ -25,6 +25,7 @@ namespace NpcFollowing
     {
         public static CompanionManager companionManager;
         public static IModHelper ModHelper;
+        public static ModEntry Instance { get; private set; }
         private StuffDriver StuffDriver { get; set; }
         /*********
          ** Public methods
@@ -53,7 +54,8 @@ namespace NpcFollowing
                 prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Prefix)),
                 postfix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Postfix))
             );
-            companionManager = new CompanionManager(this.Monitor);
+            companionManager = new CompanionManager(helper, this.Monitor);
+            Instance = this;
             helper.Events.GameLoop.DayStarted += this.GameLoop_DayStarted;
             helper.Events.GameLoop.DayEnding += this.GameLoop_DayEnding;
             StuffDriver = new StuffDriver(helper.Data, this.Monitor);
@@ -185,7 +187,7 @@ namespace NpcFollowing
                 }
             }
 
-            internal static void NPC_checkAction_Postfix(NPC __instance, Farmer who, GameLocation l)
+            internal static void NPC_checkAction_Postfix(NPC __instance, Farmer who, GameLocation l, ref bool __result)
             {
                 if (who.ActiveObject?.QualifiedItemId == "(O)szzrain.NpcFollowing.object.debug.stick")
                 {
@@ -197,11 +199,11 @@ namespace NpcFollowing
                     {
                         Monitor.Log("Check action: NPC can following player.", LogLevel.Info);
                         CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
-                        if (__instance.isMarried() && __instance.getSpouse() == who 
-                            && (!__instance.hasBeenKissedToday.Value) || ( __instance.hasBeenKissedToday.Value && !s.IsKissedEarly))
+                        if (__result || (__instance.isMarried() && __instance.getSpouse() == who 
+                            && (!__instance.hasBeenKissedToday.Value) || ( __instance.hasBeenKissedToday.Value && !s.IsKissedEarly)))
                         {
                             s.IsKissedEarly = false;
-                            Monitor.Log($"Kissing {__instance.Name}.", LogLevel.Info);
+                            Monitor.Log($"Interacting with {__instance.Name}, skip action check", LogLevel.Info);
                         }
                         else if (__instance.isMarried() && __instance.getSpouse() == who)
                         {

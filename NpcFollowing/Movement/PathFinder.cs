@@ -4,7 +4,9 @@ using StardewValley.Locations;
 using StardewValley.TerrainFeatures;
 using System;
 using System.Collections.Generic;
+using StardewModdingAPI;
 using xTile.Dimensions;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace NpcFollowing.Movement
 {
@@ -177,16 +179,39 @@ namespace NpcFollowing.Movement
             StardewValley.Objects.Furniture furn = o as StardewValley.Objects.Furniture;
             Fence fence = o as Fence;
             Torch torch = o as Torch;
-
+            
+            // ModEntry.Instance.Monitor.Log($"Checking tile {tile} for walkability");
+            // ModEntry.Instance.Monitor.Log($"Tile is on map: {this.gl.isTileOnMap(tile)}");
+            // ModEntry.Instance.Monitor.Log($"Tile is not occupied: {!this.isTileOccupiedIgnoreFloorsOverride(tile)}");
+            // ModEntry.Instance.Monitor.Log($"Tile is passable: {this.isTilePassableOverride(new Location((int)tile.X, (int)tile.Y), Game1.viewport)}");
+            // ModEntry.Instance.Monitor.Log($"Tile is not in a building: {!(this.GameLocation is Farm) || !((this.GameLocation as Farm).getBuildingAt(tile) != null)}");
+            // ModEntry.Instance.Monitor.Log($"Tile is not a furniture: {furn != null && furn.furniture_type.Value == 12}");
+            // ModEntry.Instance.Monitor.Log($"Tile is not a gate: {fence != null && fence.isGate.Value}");
+            // ModEntry.Instance.Monitor.Log($"Tile is not a torch: {torch != null}");
+            // ModEntry.Instance.Monitor.Log($"Tile is not a resource: {o == null || o.ParentSheetIndex == 590}");
+            // Game1.player.ignoreCollisions = true;
+            
+            // bool willDistroy = this.thisCharacter.willDestroyObjectsUnderfoot;
+            // bool result = this.gl.isTileOnMap(tile) &&
+            //               !this.isTileOccupiedIgnoreFloorsOverride(tile) &&
+            //               this.isTilePassableOverride(new Location((int)tile.X, (int)tile.Y), Game1.viewport) &&
+            //               // not in farm
+            //               !this.gl.isCollidingPosition(new Rectangle((int)tile.X, (int)tile.Y + 64, 64, 64), Game1.viewport, false, 0, false, this.thisCharacter, false, false, false, true) &&
+            //               // (!(this.GameLocation is Farm) ||
+            //               //  !((this.GameLocation as Farm).getBuildingAt(tile) != null)) &&
+            //               ((o == null) ||
+            //                (furn != null && furn.furniture_type.Value == 12) ||
+            //                (fence != null && fence.isGate.Value) ||
+            //                (torch != null) ||
+            //                (o.ParentSheetIndex == 590));
+            // this.thisCharacter.willDestroyObjectsUnderfoot = false;
+            // bool result = 
+            // ModEntry.Instance.Monitor.Log($"Tile is walkable: {result}");
+            // this.thisCharacter.willDestroyObjectsUnderfoot = willDistroy;
             return this.gl.isTileOnMap(tile) &&
-                       !this.isTileOccupiedIgnoreFloorsOverride(tile) &&
-                       this.isTilePassableOverride(new Location((int)tile.X, (int)tile.Y), Game1.viewport) &&
-                       (!(this.GameLocation is Farm) || !((this.GameLocation as Farm).getBuildingAt(tile) != null)) &&
-                       ((o == null) ||
-                        (furn != null && furn.furniture_type.Value == 12) ||
-                        (fence != null && fence.isGate.Value) ||
-                        (torch != null) ||
-                        (o.ParentSheetIndex == 590));
+                   !this.isTileOccupiedIgnoreFloorsOverride(tile) &&
+                   this.isTilePassableOverride(new Location((int)tile.X, (int)tile.Y), Game1.viewport) &&
+                   !this.gl.isCollidingPosition(new Rectangle((int)tile.X * 64 + 1, (int)tile.Y*64+1, 62, 62), Game1.viewport, false, 0, false, this.thisCharacter, true);
 
         }
 

@@ -120,6 +120,14 @@ namespace NpcFollowing
                 string key = Game1.shortDayNameFromDayOfSeason(dayOfMonth);
                 try {
                     Monitor.Log($"Called TryLoadSchedule for {__instance.Name} at {key}", LogLevel.Debug);
+                    if (__instance.CanSocialize)
+                    {
+                        if (!companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                        {
+                            Monitor.Log($"Can Socialize and not Available Companions, adding", LogLevel.Info);
+                            setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
+                        }
+                    }
                     return true;
                 } catch (Exception ex) {
                     Monitor.Log($"Failed in {nameof(TryLoadSchedule_Prefix)}:\n{ex}", LogLevel.Error);
@@ -215,12 +223,6 @@ namespace NpcFollowing
                         CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
                         s.IsKissedEarly = __instance.hasBeenKissedToday.Value;
                         Monitor.Log($"Current State: {s.CurrentStateFlag}", LogLevel.Info);
-                    } 
-                    else 
-                    {
-                        Monitor.Log($"Not Available Companions, adding", LogLevel.Info);
-                        setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
-                        companionManager.PossibleCompanions[__instance.Name].ChangeState(CompanionStateMachine.StateFlag.AVAILABLE);
                     }
                     if (ModEntry.Instance.Helper.Input.IsDown(SButton.LeftShift) && companionManager.CheckAction(who, __instance, l))
                     {

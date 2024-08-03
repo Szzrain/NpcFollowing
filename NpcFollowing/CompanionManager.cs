@@ -141,6 +141,10 @@ namespace NpcFollowing
             {
                 return csm.CheckAction(who, location);
             }
+            else
+            {
+                this.monitor.Log($"Companion '{withWhom.Name}' not found in companion list!", LogLevel.Error);
+            }
 
             return false;
         }

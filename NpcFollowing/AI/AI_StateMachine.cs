@@ -85,7 +85,8 @@ namespace NpcFollowing.AI
             this.controllers = new Dictionary<State, IController>()
             {
                 [State.FOLLOW] = new FollowController(this),
-                // [State.FIGHT] = new FightController(this, this.loader, this.events, this.Csm.Metadata.Sword),
+                // [State.FIGHT] = new FightController(this, this.loader, this.events, "(W)62"),
+                [State.FIGHT] = new FightController(this, this.events, "(W)62"),
                 // [State.IDLE] = new IdleController(this, this.loader),
                 // [State.FORAGE] = new ForageController(this, this.events),
                 [State.SPIRITUAL] = new LovePeaceController(this, this.events),
@@ -152,11 +153,8 @@ namespace NpcFollowing.AI
 
         private bool IsThereAnyMonster(float distance)
         {
-            // TODO: Implement monster detection
-            return false;
-            // Monster monster = Helper.GetNearestMonsterToCharacter(this.npc, distance);
-            //
-            // return monster != null && Helper.IsValidMonster(monster);
+            Monster monster = Helper.GetNearestMonsterToCharacter(this.npc, distance);
+            return monster != null && Helper.IsValidMonster(monster);
         }
 
         public bool IsFarmerNear(float maxDistance = 11f)
@@ -191,20 +189,19 @@ namespace NpcFollowing.AI
                 return;
             }
             
-
-            // TODO: Implement monster detection
-            // if (this.Csm.HasSkillsAny("fighter", "warrior")
-            //     && !this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)
-            //     && this.CurrentState != State.FIGHT
-            //     && this.IsFarmerNear()
-            //     && this.IsThereAnyMonster(
-            //         this.Csm.HasSkill("warrior") 
-            //         ? FightController.DEFEND_TILE_RADIUS_WARRIOR 
-            //         : FightController.DEFEND_TILE_RADIUS))
-            // {
-            //     this.ChangeState(State.FIGHT);
-            //     this.Monitor.Log("A 50ft monster is here!");
-            // }
+            if (
+                // this.Csm.HasSkillsAny("fighter", "warrior")&&
+                !this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)
+                && this.CurrentState != State.FIGHT
+                && this.IsFarmerNear()
+                && this.IsThereAnyMonster(
+                    this.Csm.HasSkill("warrior") 
+                    ? FightController.DEFEND_TILE_RADIUS_WARRIOR 
+                    : FightController.DEFEND_TILE_RADIUS))
+            {
+                this.ChangeState(State.FIGHT);
+                this.Monitor.Log("A 50ft monster is here!");
+            }
 
             // if (this.Csm.HasSkill("spiritual")
             //     && !this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)

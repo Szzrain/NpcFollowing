@@ -438,6 +438,7 @@ namespace NpcFollowing.StateMachine.State
 
             typeof(NPC).GetField("previousEndPoint", BindingFlags.NonPublic | BindingFlags.Instance)?
                 .SetValue(companion, companion.Tile.ToPoint());
+            companion.TryLoadSchedule();
             companion.checkSchedule(Game1.timeOfDay);
 
             // Set end of route behavior, message, and facingDirection

@@ -362,12 +362,12 @@ namespace NpcFollowing.StateMachine.State
                 // new Response("bag", this.StateMachine.ContentLoader.LoadString("Strings/Strings:recruitedWant.bag")),
                 // new Response("dismiss", this.StateMachine.ContentLoader.LoadString("Strings/Strings:recruitedWant.dismiss")),
                 // new Response("nothing", this.StateMachine.ContentLoader.LoadString("Strings/Strings:recruitedWant.nothing")),
-                new Response("bag", "Open bag"),
-                new Response("dismiss", "Dismiss"),
-                new Response("nothing", "Nothing")
+                new Response("bag", "打开背包"),
+                new Response("dismiss", "解散"+this.StateMachine.Companion.displayName),
+                new Response("nothing", "没事")
             };
 
-            string question = "What do you want?";
+            string question = "你想要做什么？";
             location.createQuestionDialogue(question, responses, (_, answer) => {
                 if (answer != "nothing")
                 {

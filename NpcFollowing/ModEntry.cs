@@ -55,6 +55,10 @@ namespace NpcFollowing
                 postfix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.NPC_checkAction_Postfix))
             );
             harmony.Patch(
+                original: AccessTools.Method(typeof(NPC), nameof(NPC.returnHomeFromFarmPosition)),
+                prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.returnHomeFromFarmPosition_Prefix))
+            );
+            harmony.Patch(
                 original: AccessTools.Method(typeof(Game1), nameof(Game1.warpCharacter), new Type[] { typeof(NPC), typeof(GameLocation), typeof(Vector2) }),
                 prefix: new HarmonyMethod(typeof(ObjectPatches), nameof(ObjectPatches.Warp_Prefix))
             );
@@ -123,6 +127,29 @@ namespace NpcFollowing
                 }
             }
             
+            internal static bool returnHomeFromFarmPosition_Prefix(NPC __instance, Farm farm)
+            {
+                try
+                {
+                    Monitor.Log($"Called returnHomeFromFarm for {__instance.Name}. With Location: {farm.Name}", LogLevel.Debug);
+                    if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                    {
+                        CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
+                        if (s.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED)
+                        {
+                            Monitor.Log($"Trying to warp {__instance.Name} but it's following a player, skipping", LogLevel.Info);
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Failed in {nameof(returnHomeFromFarmPosition_Prefix)}:\n{ex}", LogLevel.Error);
+                    return true;
+                }
+            }
+            
             internal static bool Warp_Prefix(NPC character, GameLocation targetLocation, Vector2 position)
             {
                 try
@@ -137,7 +164,7 @@ namespace NpcFollowing
                 }
             }
 
-            internal static bool NPC_checkAction_Prefix(NPC __instance, Farmer who, GameLocation l)
+            internal static bool NPC_checkAction_Prefix(NPC __instance, Farmer who, GameLocation l, ref bool __result)
             {
                 try
                 {
@@ -195,6 +222,11 @@ namespace NpcFollowing
                         setNpcStateMachine(__instance, ModEntry.companionManager, ModEntry.ModHelper.Events, Monitor);
                         companionManager.PossibleCompanions[__instance.Name].ChangeState(CompanionStateMachine.StateFlag.AVAILABLE);
                     }
+                    if (ModEntry.Instance.Helper.Input.IsDown(SButton.LeftShift) && companionManager.CheckAction(who, __instance, l))
+                    {
+                        __result = true;
+                        return false;
+                    }
                     return true;
                 }
                 catch (Exception ex)
@@ -204,33 +236,58 @@ namespace NpcFollowing
                 }
             }
 
-            internal static void NPC_checkAction_Postfix(NPC __instance, Farmer who, GameLocation l, ref bool __result)
+            internal static void NPC_checkAction_Postfix(NPC __instance, Farmer who, GameLocation l, ref bool __result, ref bool __state)
             {
                 if (who.ActiveObject?.QualifiedItemId == "(O)szzrain.NpcFollowing.object.debug.stick")
                 {
                     return;
                 }
+                // try
+                // {
+                //     if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                //     {
+                //         CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
+                //         Monitor.Log("Check action: NPC can following player.", LogLevel.Info);
+                //         if (__result || (__instance.isMarried() && __instance.getSpouse() == who 
+                //             && (!__instance.hasBeenKissedToday.Value) || ( __instance.hasBeenKissedToday.Value && !s.IsKissedEarly)))
+                //         {
+                //             s.IsKissedEarly = false;
+                //             Monitor.Log($"Interacting with {__instance.Name}, skip action check", LogLevel.Info);
+                //         }
+                //         else if (s.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED)
+                //         {
+                //             companionManager.CheckAction(who, __instance, l);
+                //         }
+                //     }
+                // }
+                // catch (Exception e)
+                // {
+                //     Monitor.Log($"Failed in {nameof(NPC_checkAction_Postfix)}:\n{e}", LogLevel.Error);
+                // }
                 try
                 {
-                    if (companionManager.PossibleCompanions.ContainsKey(__instance.Name))
+                    if (__instance.CurrentDialogue.Count > 0)
                     {
-                        Monitor.Log("Check action: NPC can following player.", LogLevel.Info);
-                        CompanionStateMachine s = companionManager.PossibleCompanions[__instance.Name];
-                        if (__result || (__instance.isMarried() && __instance.getSpouse() == who 
-                            && (!__instance.hasBeenKissedToday.Value) || ( __instance.hasBeenKissedToday.Value && !s.IsKissedEarly)))
+                        Monitor.Log("CurrentDialogue.Count > 0, skip", LogLevel.Debug);
+                        return;
+                    }
+                    // Check our action when vanilla check action don't triggered or spouse was kissed today and farmer try to kiss again
+                    if (!__result || (__result && __state && who.FarmerSprite.CurrentFrame == 101))
+                    {
+                        __result = companionManager.CheckAction(who, __instance, l);
+
+                        // Cancel kiss when spouse was kissed today and we did our action
+                        if (__result && who.FarmerSprite.CurrentFrame == 101)
                         {
-                            s.IsKissedEarly = false;
-                            Monitor.Log($"Interacting with {__instance.Name}, skip action check", LogLevel.Info);
-                        }
-                        else if (__instance.isMarried() && __instance.getSpouse() == who)
-                        {
-                            companionManager.CheckAction(who, __instance, l);
+                            who.completelyStopAnimatingOrDoingAction();
+                            __instance.IsEmoting = false;
+                            __instance.Halt();
+                            __instance.facePlayer(who);
                         }
                     }
-                }
-                catch (Exception e)
+                } catch (Exception ex)
                 {
-                    Monitor.Log($"Failed in {nameof(NPC_checkAction_Postfix)}:\n{e}", LogLevel.Error);
+                    Monitor.Log($"Failed in {nameof(NPC_checkAction_Postfix)}:\n{ex}", LogLevel.Error);
                 }
             }
         }

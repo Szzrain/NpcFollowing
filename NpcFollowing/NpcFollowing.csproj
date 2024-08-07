@@ -7,13 +7,20 @@
         <EnableHarmony>true</EnableHarmony>
         <RootNamespace>NpcFollowing</RootNamespace>
     </PropertyGroup>
-
+    
+    <Target Name="CopyDirectories" AfterTargets="Build">
+        <Exec Command='xcopy "$(ProjectDir)[CP]NpcFollowing" "$(GamePath)/Mods/[CP]NpcFollowing" /E /I /Q /Y' />
+    </Target>
+    
     <ItemGroup>
       <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
     </ItemGroup>
-
+    
     <ItemGroup>
       <Folder Include="assets\texture\" />
     </ItemGroup>
+
+    
+    
 
 </Project>

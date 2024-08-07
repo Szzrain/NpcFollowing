@@ -15,7 +15,7 @@
           "DisplayName": "{{i18n:NpcFollowing.object.debug.stick.name}}",
           "Description": "{{i18n:NpcFollowing.object.debug.stick.description}}",
           "Category": 0,
-          "Price": 300,
+          "Price": 0,
           "Texture": "Mods\\szzrain\\debug.stick",
           "SpriteIndex": 0,
           "CanBePlacedIndoors": true,

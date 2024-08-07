@@ -5,6 +5,11 @@
       "LogName": "Objects",
       "Action": "Include",
       "FromFile": "assets/Objects/Objects.json"
+    },
+    {
+      "LogName": "Dialogue",
+      "Action": "Include",
+      "FromFile": "assets/Strings/Dialogue.json"
     }
   ]
 }

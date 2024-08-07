@@ -8,14 +8,6 @@
     },
     {
       "Action": "EditData",
-      "Target": "Data/ExtraDialogue",
-      "Entries": {
-        "follow_request_accept": "{{i18n:NpcFollowing.dialogue.follow_request.accept}}",
-        "follow_request_reject": "{{i18n:NpcFollowing.dialogue.follow_request.reject}}"
-      }
-    },
-    {
-      "Action": "EditData",
       "Target": "Data/Objects",
       "Entries": {
         "szzrain.NpcFollowing.object.debug.stick": {

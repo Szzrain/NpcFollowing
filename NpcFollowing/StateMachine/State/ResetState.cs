@@ -419,7 +419,7 @@ namespace NpcFollowing.StateMachine.State
         {
             await Task.Run(() => this.Timer(milliseconds));
             location = location != null ? location : this.StateMachine.CompanionManager.Farmer.currentLocation.Name;
-            tileLocation = tileLocation != Point.Zero ? tileLocation : this.StateMachine.CompanionManager.Farmer.Tile.ToPoint();
+            tileLocation = tileLocation != Point.Zero ? tileLocation : this.StateMachine.CompanionManager.Farmer.TilePoint;
             if (this.StateMachine.Companion.currentLocation != null)
                 Game1.warpCharacter(this.StateMachine.Companion, location, tileLocation);
             afterWarpAction.Invoke();

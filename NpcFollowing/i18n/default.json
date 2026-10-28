@@ -1,0 +1,10 @@
+{
+  "recruit.question": "Ask {{npc}} to join you on an adventure?",
+  "recruit.accept.fallback": "All right, let's go!",
+  "recruit.reject.fallback": "I'm sorry, I'd like to know you a little better first.",
+  "recruit.reject.late.fallback": "It's too late for me to head out. Let's try another day.",
+  "companion.menu.question": "What would you like to do?",
+  "companion.menu.bag": "Open backpack",
+  "companion.menu.dismiss": "Dismiss {{npc}}",
+  "companion.menu.nothing": "Nothing"
+}

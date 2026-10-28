@@ -128,8 +128,8 @@ namespace NpcFollowing.Utils
                     }
                     if (((Monster)location.characters[j]).Health <= 0)
                     {
-                        if (!location.IsFarm)
-                            leader.checkForQuestComplete((NPC)null, 1, 1, (Item)null, location.characters[j].Name, 4, -1);
+                        // if (!location.IsFarm)
+                        //     leader.checkForQuestComplete((NPC)null, 1, 1, (Item)null, location.characters[j].Name, 4, -1);
                         Monster character = location.characters[j] as Monster;
                         location.monsterDrop(character, boundingBox.Center.X, boundingBox.Center.Y, leader);
                         location.characters.Remove(character);
@@ -245,10 +245,10 @@ namespace NpcFollowing.Utils
                     }
                     if (monster.Health <= 0)
                     {
-                        if (!location.IsFarm)
-                        {
-                            leader.checkForQuestComplete(null, 1, 1, null, monster.Name, 4, -1);
-                        }
+                        // if (!location.IsFarm)
+                        // {
+                        //     leader.checkForQuestComplete(null, 1, 1, null, monster.Name, 4, -1);
+                        // }
                         if (leader != null && !location.IsFarm && (!(monster is GreenSlime) || (monster as GreenSlime).firstGeneration.Value))
                         {
                             if (leader.IsLocalPlayer)

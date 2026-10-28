@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using StardewValley.Pathfinding;
+using NpcFollowing.Utils;
 
 namespace NpcFollowing.Movement
 {
@@ -189,7 +190,7 @@ namespace NpcFollowing.Movement
             else if (this.movedLastFrame)
             {
                 this.follower.Halt();
-                this.follower.Sprite.faceDirectionStandard(this.GetFacingDirectionFromMovement(new Vector2(this.lastMovementDirection.X, -this.lastMovementDirection.Y)));
+                NpcSpriteHelper.FaceDirectionStandard(this.follower, this.GetFacingDirectionFromMovement(new Vector2(this.lastMovementDirection.X, -this.lastMovementDirection.Y)));
                 this.movedLastFrame = false;
                 this.Move?.Invoke(this, new MoveEventArgs(true));
             }
@@ -275,7 +276,7 @@ namespace NpcFollowing.Movement
 
             if (this.facingDirection >= 0)
             {
-                this.follower.faceDirection(this.facingDirection);
+                NpcSpriteHelper.FaceDirection(this.follower, this.facingDirection);
                 this.SetMovementDirectionAnimation(this.facingDirection);
             }
         }
@@ -287,6 +288,12 @@ namespace NpcFollowing.Movement
                 return;
 
             this.SetMovingOnlyOneDirection(dir);
+
+            if (!NpcSpriteHelper.HasStandardFrames(this.follower.Sprite))
+            {
+                NpcSpriteHelper.KeepValidStaticFrame(this.follower.Sprite);
+                return;
+            }
 
             switch (dir)
             {

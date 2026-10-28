@@ -1,441 +1,237 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-// using ExpandedPreconditionsUtility;
 using Microsoft.Xna.Framework;
-using NpcFollowing.Loader;
 using NpcFollowing.Model;
 using NpcFollowing.Objects;
 using NpcFollowing.StateMachine.StateFeatures;
 using StardewModdingAPI;
-using StardewModdingAPI.Utilities;
 using StardewValley;
-using StardewValley.Locations;
 using StardewValley.Objects;
 using StardewValley.Pathfinding;
 
-namespace NpcFollowing.StateMachine
+namespace NpcFollowing.StateMachine;
+
+/// <summary>Owns one NPC's session, inventory, and paired state entry/exit calls.</summary>
+internal sealed class CompanionStateMachine : IDisposable
 {
+    public enum StateFlag { RESET, AVAILABLE, RECRUITED, UNAVAILABLE }
 
-    internal class CompanionStateMachine : IDisposable
+    private ICompanionState? currentState;
+    public CompanionManager CompanionManager { get; }
+    public NPC Companion { get; }
+    public string Name { get; }
+    public IMonitor Monitor { get; }
+    public CompanionDefinition Definition { get; set; }
+    public Chest Bag { get; private set; } = new();
+    public Dictionary<StateFlag, ICompanionState> States { get; private set; } = new();
+    public StateFlag CurrentStateFlag { get; private set; }
+    public Dictionary<int, SchedulePathDescription>? BackedupSchedule { get; private set; }
+    public string? BackedUpScheduleKey { get; private set; }
+    public bool BackedUpIgnoreScheduleToday { get; private set; }
+    public GameLocation? BackedUpLocation { get; private set; }
+    public Vector2 BackedUpPosition { get; private set; }
+    public int BackedUpFacingDirection { get; private set; }
+    public bool BackedUpFollowSchedule { get; private set; }
+    public bool BackedUpEventActor { get; private set; }
+    public bool BackedUpFarmerPassesThrough { get; private set; }
+    public bool IsDebugSession { get; private set; }
+    public bool RecruitedToday { get; private set; }
+    public bool IsKissedEarly { get; set; }
+    public bool IsDisposed { get; private set; }
+
+    public CompanionStateMachine(CompanionManager manager, NPC companion, CompanionDefinition definition, IMonitor monitor)
     {
-        /// <summary>
-        /// Allowed states in machine
-        /// </summary>
-        public enum StateFlag
+        CompanionManager = manager;
+        Companion = companion;
+        Name = companion.Name;
+        Definition = definition.Snapshot();
+        Monitor = monitor;
+    }
+
+    public void Setup(Dictionary<StateFlag, ICompanionState> handlers)
+    {
+        if (States.Count != 0)
+            throw new InvalidOperationException("Companion states are already set up.");
+        States = handlers;
+        ResetStateMachine();
+    }
+
+    public void ChangeState(StateFlag state)
+    {
+        if (IsDisposed)
+            return;
+        if (!States.TryGetValue(state, out var next))
+            throw new InvalidStateException($"Missing {state} state for '{Name}'.");
+        if (ReferenceEquals(currentState, next))
+            return;
+
+        currentState?.Exit();
+        currentState = next;
+        CurrentStateFlag = state;
+        try
         {
-            RESET,
-            AVAILABLE,
-            RECRUITED,
-            UNAVAILABLE,
+            next.Entry();
         }
-        public CompanionManager CompanionManager { get; private set; }
-        public NPC Companion { get; private set; }
-        // public CompanionMetaData Metadata { get; }
-        // public IContentLoader ContentLoader { get; private set; }
-        public IMonitor Monitor { get; }
-        public Chest Bag { get; private set; }
-        // public IReflectionHelper Reflection { get; }
-        public Dictionary<StateFlag, ICompanionState> States { get; private set; }
-        private ICompanionState currentState;
-        private readonly bool isVillager;
-        public bool IsKissedEarly { get; set; }
-
-        public CompanionStateMachine(CompanionManager manager, NPC companion, IMonitor monitor = null)
+        catch
         {
-            this.isVillager = false;
-            this.Name = companion?.Name;
-            this.CompanionManager = manager;
-            this.Companion = companion;
-            // this.Metadata = metadata;
-            // this.ContentLoader = loader;
-            this.Monitor = monitor;
-            this.Bag = new Chest();
-            // this.Reflection = reflection;
-            this.SpokenDialogues = new HashSet<string>();
-            // this.Dialogues = new DialogueProvider(this, loader);
+            next.Exit();
+            currentState = null;
+            CurrentStateFlag = StateFlag.RESET;
+            throw;
         }
+    }
 
-        public CompanionStateMachine(string name, CompanionManager manager, IMonitor monitor = null) : this(manager, null, monitor)
-        {
-            this.Name = name;
-            this.isVillager = true;
-            this.ReloadNpc();
-        }
+    public ICompanionState? GetCurrentStateBehavior() => currentState;
 
-        /// <summary>
-        /// Our companion name (Refers NPC name)
-        /// </summary>
-        public string Name { get; private set; }
+    public void SetupForNewDay()
+    {
+        if (CurrentStateFlag == StateFlag.RECRUITED)
+            Dismiss();
+        ResetStateMachine();
+        RecruitedToday = false;
+        ChangeState(Utility.isFestivalDay(Game1.dayOfMonth, Game1.season) || CompanionManager.IsUnavailableToday(Name)
+            ? StateFlag.UNAVAILABLE : StateFlag.AVAILABLE);
+    }
 
-        public StateFlag CurrentStateFlag { get; private set; }
-        public Dictionary<int, SchedulePathDescription> BackedupSchedule { get; internal set; }
-        public bool BackedUpIgnoreScheduleToday { get; internal set; }
-        public bool RecruitedToday { get; private set; }
-        public bool SuggestedToday { get; internal set; }
-        public bool CanSuggestToday { get; private set; }
-        public HashSet<string> SpokenDialogues { get; private set; }
-        // public DialogueProvider Dialogues { get; }
+    public void MakeAvailable() => ChangeState(StateFlag.AVAILABLE);
+    public void MakeUnavailable()
+    {
+        CompanionManager.MarkUnavailableToday(Name);
+        ChangeState(StateFlag.UNAVAILABLE);
+    }
+    public void ResetStateMachine() => ChangeState(StateFlag.RESET);
 
-        public void ReloadNpc()
-        {
-            if (!this.isVillager)
-                return;
+    public void Kill()
+    {
+        currentState?.Exit();
+        currentState = null;
+        CurrentStateFlag = StateFlag.RESET;
+    }
 
-            var npcDispositions = Game1.content.Load<Dictionary<string, string>>(@"Data\NPCDispositions");
+    internal void Dismiss(bool keepUnavailableOthers = false)
+    {
+        if (IsDisposed || CurrentStateFlag != StateFlag.RECRUITED)
+            return;
+        ResetStateMachine();
+        if (currentState is ICompanionIntegrator integrator)
+            integrator.ReintegrateCompanionNPC();
+        ClearRecruitmentBackup();
+        MakeUnavailable();
+        CompanionManager.CompanionDissmised(this);
+    }
 
-            if (!npcDispositions.ContainsKey(this.Name))
-            {
-                this.Monitor?.Log($"Unable to initialize companion `{this.Name}`, because this NPC cannot be found in the game. " +
-                        "Are you trying to add a custom NPC as a companion? Check the mod which adds this NPC into the game. " +
-                        "Don't report this as a bug to NPC Adventures unless it's a vanilla game NPC.", LogLevel.Error);
-                return;
-            }
-
-            this.Companion = Game1.getCharacterFromName(this.Name);
-        }
-
-        /// <summary>
-        /// Change companion state machine state
-        /// </summary>
-        /// <param name="stateFlag">Flag of allowed state</param>
-        public void ChangeState(StateFlag stateFlag)
-        {
-            if (this.States == null)
-                throw new InvalidStateException($"State machine for companion '{this.Name}' is not ready! Call setup first.");
-
-            if (!this.States.TryGetValue(stateFlag, out ICompanionState newState))
-                throw new InvalidStateException($"Invalid state {stateFlag} for companion '{this.Name}'. Is state machine correctly set up?");
-
-            if (this.currentState == newState)
-                return;
-
-            if (this.currentState != null)
-            {
-                this.currentState.Exit();
-            }
-
-            newState.Entry();
-            this.currentState = newState;
-            this.Monitor.Log($"{this.Name} changed state: {this.CurrentStateFlag} -> {stateFlag}");
-            this.CurrentStateFlag = stateFlag;
-        }
-
-        public ICompanionState GetCurrentStateBehavior()
-        {
-            return this.currentState;
-        }
-
-        /// <summary>
-        /// Setup state handlers
-        /// </summary>
-        /// <param name="stateHandlers"></param>
-        public void Setup(Dictionary<StateFlag, ICompanionState> stateHandlers)
-        {
-            if (this.States != null)
-                throw new InvalidOperationException("State machine is already set up!");
-
-            this.States = stateHandlers;
-            this.ResetStateMachine();
-        }
-
-        /// <summary>
-        /// Companion speaked a dialogue
-        /// </summary>
-        /// <param name="spokenDialogue"></param>
-        public void OnDialogueSpoken(Dialogue spokenDialogue)
-        {
-            // TODO: Implement dialogue detector
-            // Convert state to dialogue detector (if state implements it)
-            // if (this.currentState is IDialogueDetector detector)
-            // {
-            //     detector.OnDialogueSpoken(spokenDialogue); // Handle this dialogue
-            // }
-            //
-            // if (spokenDialogue is CompanionDialogue companionDialogue && companionDialogue.SpecialAttributes.Contains("session"))
-            // {
-            //     // Remember session spoken dialogue this day (forget morning)
-            //     this.SpokenDialogues.Add(companionDialogue.Tag);
-            // }
-        }
-
-        /// <summary>
-        /// Setup companion for new day
-        /// </summary>
-        public void SetupForNewDay()
-        {
-            if (this.CurrentStateFlag != StateFlag.RESET)
-                throw new InvalidStateException($"State machine {this.Name} must be in reset state!");
-
-            // Today is festival day? Player can't recruit this companion
-            if (!this.CanBeAvailableToday())
-            {
-                this.MakeUnavailable();
-                return;
-            }
-
-            // Setup dialogues for companion for this day
-            // this.Dialogues.SetupForNewDay();
-
-            this.RecruitedToday = false;
-            this.SuggestedToday = false;
-            this.CanSuggestToday = Game1.random.NextDouble() > .5f
-                && !(this.Companion.isMarried() && SDate.Now().DayOfWeek == DayOfWeek.Monday);
-            this.SpokenDialogues.Clear();
-            this.MakeAvailable();
-
-            if (this.CanSuggestToday)
-                this.Monitor.Log($"{this.Name} can suggest adventure today!");
-        }
-
-        /// <summary>
-        /// Check if the companion state can be set to AVAILABLE state
-        /// </summary>
-        /// <returns></returns>
-        private bool CanBeAvailableToday()
-        {
-            if (Utility.isFestivalDay(Game1.dayOfMonth, Game1.season))
-            {
-                this.Monitor.Log($"{this.Name} can't be available today for recruit due to festival day.");
-                return false; 
-            }
-
-            // if (!string.IsNullOrEmpty(this.Metadata.Availability))
-            // {
-            //     // bool canBeAvailable = this.CompanionManager
-            //     //     .EPU
-            //     //     .CheckConditions(this.Metadata.Availability.Replace(';', '/'));
-            //     bool canBeAvailable = true;
-            //
-            //     if (!canBeAvailable)
-            //         this.Monitor.Log($"Availability condition `{this.Metadata.Availability}` is not met for '{this.Name}'. Companion is unavailable for recruit.");
-            //     else
-            //     {
-            //         this.Monitor.Log($"{this.Name} can be available today for recruit.");
-            //     }
-            //     return canBeAvailable;
-            // }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Dump items from companion's bag to farmer (player) house
-        /// </summary>
-        public void DumpBagInFarmHouse()
-        {
-            FarmHouse farm = (FarmHouse)Game1.getLocationFromName("FarmHouse");
-            Vector2 place = Utility.PointToVector2(farm.getRandomOpenPointInHouse(Game1.random));
-            Package dumpedBag = new Package(this.Bag.Items.ToList(), place)
-            {
-                GivenFrom = this.Name,
-                // Message = this.ContentLoader.LoadString($"Strings/Mail:bagItemsSentLetter.{this.Companion.Name}", this.CompanionManager.Farmer.Name, this.Companion.displayName)
-            };
-
-            farm.objects.Add(place, dumpedBag);
-            this.Bag = new Chest();
-
-            this.Monitor.Log($"{this.Companion} delivered bag contents into farm house at position {place}");
-        }
-
-        public Dialogue GenerateLocationDialogue(GameLocation location, string suffix = "")
-        {
-            // // Try generate only once spoken dialogue in game save
-            // if (this.Dialogues.GenerateStaticDialogue(location, $"companionOnce{suffix}") is CompanionDialogue dialogueOnce
-            //     && !this.CompanionManager.Farmer.hasOrWillReceiveMail(dialogueOnce.Tag))
-            // {
-            //     // Remember only once spoken dialogue (as received mail. Keep it forever in loaded game after game saved)
-            //     dialogueOnce.Remember = true;
-            //     return dialogueOnce;
-            // }
-            //
-            // // Try generate standard companion various dialogue. This dialogue can be shown only once per day (per recruited companion session)
-            // if (this.Dialogues.GenerateDialogue(location, $"companion{suffix}") is CompanionDialogue dialogue && !this.SpokenDialogues.Contains(dialogue.Tag))
-            // {
-            //     dialogue.SpecialAttributes.Add("session"); // Remember this dialogue in this companion session when will be spoken
-            //     return dialogue;
-            // }
-            //
-            // // Try generate dialogue which can be shown repeately in day (current companion session). If none defined, returns null
-            // return this.Dialogues.GenerateDialogue(location, "companionRepeat");
-            return null;
-        }
-
-        /// <summary>
-        /// Does companion have this skill?
-        /// </summary>
-        /// <param name="skill">Which skill</param>
-        /// <returns>True if companion has this skill, otherwise False</returns>
-        public bool HasSkill(string skill)
-        {
-            // return this.Metadata.PersonalSkills.Contains(skill);
+    public bool Recruit(bool force = false)
+    {
+        if (IsDisposed || CurrentStateFlag != StateFlag.AVAILABLE || !CompanionManager.CanRecruit()
+            || (!force && !CompanionManager.IsCandidate(Companion)))
             return false;
+        BackedupSchedule = Companion.Schedule;
+        BackedUpScheduleKey = Companion.dayScheduleName.Value;
+        BackedUpIgnoreScheduleToday = Companion.ignoreScheduleToday;
+        BackedUpLocation = Companion.currentLocation;
+        BackedUpPosition = Companion.Position;
+        BackedUpFacingDirection = Companion.FacingDirection;
+        BackedUpFollowSchedule = Companion.followSchedule;
+        BackedUpEventActor = Companion.EventActor;
+        BackedUpFarmerPassesThrough = Companion.farmerPassesThrough;
+        IsDebugSession = force;
+        Definition = Definition.Snapshot();
+        if (!Companion.currentLocation.isTilePassable(Companion.GetBoundingBox(), Game1.viewport))
+            Companion.setTileLocation(Companion.GetGrabTile());
+        try
+        {
+            ChangeState(StateFlag.RECRUITED);
         }
-
-        /// <summary>
-        /// Does companion have all of these skills?
-        /// </summary>
-        /// <param name="skills">Which skills</param>
-        /// <returns>True if companion has all of them, otherwise False</returns>
-        public bool HasSkills(params string[] skills)
+        catch
         {
-            foreach (string skill in skills)
-            {
-                if (!this.HasSkill(skill))
-                    return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Does companion have any of these skills?
-        /// </summary>
-        /// <param name="skills">Which skills</param>
-        /// <returns>True if companion have any of these skills, otherwise False</returns>
-        public bool HasSkillsAny(params string[] skills)
-        {
-            foreach (string skill in skills)
-            {
-                if (this.HasSkill(skill))
-                    return true;
-            }
-
-            return false;
-        } 
-
-        /// <summary>
-        /// Make companion AVAILABLE to recruit
-        /// </summary>
-        public void MakeAvailable()
-        {
-            this.ChangeState(StateFlag.AVAILABLE);
-        }
-
-        /// <summary>
-        /// Make companion UNAVAILABLE to recruit
-        /// </summary>
-        public void MakeUnavailable()
-        {
-            this.ChangeState(StateFlag.UNAVAILABLE);
-        }
-
-        /// <summary>
-        /// Reset companion's state machine
-        /// </summary>
-        public void ResetStateMachine()
-        {
-            this.ChangeState(StateFlag.RESET);
-        }
-
-        /// <summary>
-        /// Kills state machine current state behavior 
-        /// and forces empty behavior with RESET state flag.
-        /// </summary>
-        public void Kill()
-        {
-            var state = this.currentState;
-
-            this.currentState = null;
-            this.CurrentStateFlag = StateFlag.RESET;
-
-            state?.Exit();
-        }
-
-        /// <summary>
-        /// Dismiss recruited companion
-        /// </summary>
-        /// <param name="keepUnavailableOthers">Keep other companions unavailable?</param>
-        internal void Dismiss(bool keepUnavailableOthers = false)
-        {
-            this.ResetStateMachine();
-
-            if (this.currentState is ICompanionIntegrator integrator)
+            ResetStateMachine();
+            if (currentState is ICompanionIntegrator integrator)
                 integrator.ReintegrateCompanionNPC();
-
-            this.BackedupSchedule = null;
-            this.ChangeState(StateFlag.UNAVAILABLE);
-            this.CompanionManager.CompanionDissmised(keepUnavailableOthers);
+            ClearRecruitmentBackup();
+            throw;
         }
+        RecruitedToday = true;
+        CompanionManager.CompanionRecuited(Name);
+        return true;
+    }
 
-        /// <summary>
-        /// Recruit this companion
-        /// </summary>
-        public void Recruit()
+    private void ClearRecruitmentBackup()
+    {
+        BackedupSchedule = null;
+        BackedUpScheduleKey = null;
+        BackedUpLocation = null;
+        IsDebugSession = false;
+    }
+
+    /// <summary>Transfer actual items once, using the saved lost-and-found inventory if the house is full.</summary>
+    public bool DumpBagInFarmHouse()
+    {
+        if (Bag.isEmpty())
+            return true;
+        var house = Utility.getHomeOfFarmer(Game1.player);
+        Vector2? place = null;
+        for (int y = 0; y < house.Map.Layers[0].LayerHeight && place is null; y++)
         {
-            this.BackedupSchedule = this.Companion.Schedule;
-            this.BackedUpIgnoreScheduleToday = this.Companion.ignoreScheduleToday;
-            this.RecruitedToday = true;
-
-            // If standing on unpassable tile (like chair, couch or bench), set position to heading passable tile location
-            if (!this.Companion.currentLocation.isTilePassable(this.Companion.GetBoundingBox(), Game1.viewport))
+            for (int x = 0; x < house.Map.Layers[0].LayerWidth; x++)
             {
-                this.Companion.setTileLocation(this.Companion.GetGrabTile());
+                var tile = new Vector2(x, y);
+                if (!house.objects.ContainsKey(tile) && house.CanItemBePlacedHere(tile) && !house.isTileOnWall(x, y))
+                {
+                    place = tile;
+                    break;
+                }
             }
-
-            this.ChangeState(StateFlag.RECRUITED);
-            this.CompanionManager.CompanionRecuited(this.Companion.Name);
         }
-
-        public void Dispose()
+        if (place is null)
         {
-            this.currentState?.Exit();
-            this.currentState = null;
-
-            foreach (var state in this.States.Values.OfType<IDisposable>())
-            {
-                state.Dispose();
-            }
-
-            this.States.Clear();
-            this.States = null;
-            this.Companion = null;
-            this.CompanionManager = null;
-            // this.ContentLoader = null;
+            foreach (var item in Bag.Items.Where(item => item != null).ToArray())
+                Game1.player.team.returnedDonations.Add(item);
+            Game1.player.team.newLostAndFoundItems.Value = true;
+            Bag.Items.Clear();
+            Bag = new Chest();
+            Monitor.Log($"The farmhouse has no free delivery tile. Returned '{Name}'s bag to the lost-and-found at the Mayor's Manor.", LogLevel.Warn);
+            return true;
         }
-
-        /// <summary>
-        /// Resolve dialogue request
-        /// </summary>
-        public bool CheckAction(Farmer who, GameLocation location)
-        {
-            Monitor.Log($"CheckAction: {this.CanPerformAction()}");
-            // Can this companion to resolve player's dialogue request?
-            if (!this.CanPerformAction())
-                return false;
-
-            // Handle dialogue request resolution in current machine state
-            return (this.currentState as IActionPerformer).PerformAction(who, location);
-        }
-
-        /// <summary>
-        /// Can request a dialogue for this companion in current state?
-        /// </summary>
-        /// <returns>True if dialogue request can be resolved</returns>
-        public bool CanPerformAction()
-        {
-            return this.currentState is IActionPerformer dcreator && dcreator.CanPerformAction;
-        }
+        var package = new Package(Bag.Items.Where(item => item != null).ToList(), place.Value) { GivenFrom = Name };
+        house.objects.Add(place.Value, package);
+        Bag.Items.Clear();
+        Bag = new Chest();
+        return true;
     }
 
-    abstract class CompanionStateException : Exception
+    // Existing AI skills and ambient dialogue are not enabled in this version.
+    public bool HasSkill(string skill) => false;
+    public bool HasSkills(params string[] skills) => skills.All(HasSkill);
+    public bool HasSkillsAny(params string[] skills) => skills.Any(HasSkill);
+    public Dialogue? GenerateLocationDialogue(GameLocation location, string suffix = "") => null;
+
+    public bool CanPerformAction() => !IsDisposed && currentState is IActionPerformer action && action.CanPerformAction;
+    public bool CheckAction(Farmer who, GameLocation location) => CanPerformAction()
+        && ((IActionPerformer)currentState!).PerformAction(who, location);
+
+    public void Dispose()
     {
-        public CompanionStateException(string message) : base(message)
-        {
-        }
+        if (IsDisposed)
+            return;
+        IsDisposed = true;
+        currentState?.Exit();
+        currentState = null;
+        foreach (var state in States.Values.OfType<IDisposable>())
+            state.Dispose();
+        States.Clear();
+        ClearRecruitmentBackup();
     }
+}
 
-    class InvalidStateException : CompanionStateException
-    {
-        public InvalidStateException(string message) : base(message)
-        {
-        }
-    }
+internal abstract class CompanionStateException : Exception
+{
+    protected CompanionStateException(string message) : base(message) { }
+}
 
-    class TransitionStateException : CompanionStateException
-    {
-        public TransitionStateException(string message) : base(message)
-        {
-        }
-    }
+internal sealed class InvalidStateException : CompanionStateException
+{
+    public InvalidStateException(string message) : base(message) { }
+}
+
+internal sealed class TransitionStateException : CompanionStateException
+{
+    public TransitionStateException(string message) : base(message) { }
 }

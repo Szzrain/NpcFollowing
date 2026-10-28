@@ -1,384 +1,214 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework;
+using NpcFollowing.AI.Controller;
+using NpcFollowing.StateMachine;
+using NpcFollowing.Timing;
+using NpcFollowing.Utils;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Monsters;
-using StardewValley.Tools;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.Xna.Framework;
-using NpcFollowing.StateMachine.State;
-using NpcFollowing.AI.Controller;
-using NpcFollowing.Loader;
-using NpcFollowing.StateMachine;
-using NpcFollowing.Timing;
-using NpcFollowing.Utils;
-using Internal_IUpdateable = NpcFollowing.Internal.IUpdateable;
-using IUpdateable = NpcFollowing.Internal.IUpdateable;
 
-namespace NpcFollowing.AI
+namespace NpcFollowing.AI;
+
+/// <summary>Coordinates the active companion's movement and combat on the game thread.</summary>
+internal partial class AI_StateMachine : NpcFollowing.Internal.IUpdateable, IDisposable
 {
-    /// <summary>
-    /// State machine for companion AI
-    /// </summary>
-    internal partial class  AI_StateMachine: Internal_IUpdateable
+    public enum State
     {
-        public enum State
+        FOLLOW,
+        FIGHT,
+        IDLE,
+        FORAGE,
+        SPIRITUAL,
+        FISH
+    }
+
+    private const string CHANGE_STATE_COOLDOWN = "changeStateCooldown";
+    private const string SCARED_COOLDOWN = "scaredCooldown";
+    private readonly IModEvents events;
+    private readonly Countdown cooldown = new();
+    private readonly Dictionary<State, IController> controllers = new();
+    private IController? activeController;
+    private double swimsuitUpdateDelayMs;
+    private bool disposed;
+
+    public readonly NPC npc;
+    public readonly Farmer farmer;
+
+    internal AI_StateMachine(CompanionStateMachine csm, IModEvents events, IMonitor monitor)
+    {
+        this.Csm = csm ?? throw new ArgumentNullException(nameof(csm));
+        this.events = events ?? throw new ArgumentNullException(nameof(events));
+        this.Monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
+        this.npc = csm.Companion;
+        this.farmer = csm.CompanionManager.Farmer;
+    }
+
+    public State CurrentState { get; private set; }
+    internal IController? CurrentController => this.activeController;
+    internal CompanionStateMachine Csm { get; }
+    internal IMonitor Monitor { get; }
+
+    public event EventHandler<EventArgsLocationChanged>? LocationChanged;
+
+    public void Setup()
+    {
+        if (this.disposed)
+            throw new ObjectDisposedException(nameof(AI_StateMachine));
+        if (this.controllers.Count > 0)
+            return;
+
+        this.controllers[State.FOLLOW] = new FollowController(this);
+        this.controllers[State.FIGHT] = new FightController(this, this.events);
+        this.controllers[State.SPIRITUAL] = new LovePeaceController(this, this.events);
+        this.ChangeState(State.FOLLOW);
+    }
+
+    public bool IsLovedMonster(Monster monster)
+    {
+        return this.Csm.HasSkill("spiritual")
+            && this.controllers.TryGetValue(State.SPIRITUAL, out IController? controller)
+            && controller is LovePeaceController lovePeaceController
+            && lovePeaceController.IsLovedMonster(monster);
+    }
+
+    public void ChangeState(State state)
+    {
+        if (this.disposed || !this.controllers.TryGetValue(state, out IController? controller))
+            return;
+        if (this.activeController == controller)
+            return;
+
+        this.Monitor.Log($"AI changes state {this.CurrentState} -> {state}", LogLevel.Trace);
+        this.activeController?.Deactivate();
+        this.CurrentState = state;
+        this.activeController = controller;
+        controller.Activate();
+    }
+
+    private bool IsThereAnyMonster(float distance)
+    {
+        Monster monster = Helper.GetNearestMonsterToCharacter(this.npc, distance);
+        return monster != null && Helper.IsValidMonster(monster);
+    }
+
+    public bool IsFarmerNear(float maxDistance = 11f)
+    {
+        return Helper.Distance(this.farmer.Tile.ToPoint(), this.npc.Tile.ToPoint()) < maxDistance;
+    }
+
+    private void CheckPotentialStateChange()
+    {
+        if (this.npc.swimming.Value || this.swimsuit)
         {
-            FOLLOW,
-            FIGHT,
-            IDLE,
-            FORAGE,
-            SPIRITUAL,
-            FISH
-        }
-
-        private const string FORAGING_COOLDOWN = "foragingCooldown";
-        private const string FISHING_COOLDOWN = "fishingCooldown";
-        private const string CHANGE_STATE_COOLDOWN = "changeStateCooldown";
-        private const string SCARED_COOLDOWN = "scaredCooldown";
-        public readonly NPC npc;
-        public readonly Farmer farmer;
-
-        public bool IsLovedMonster(Monster monster)
-        {
-            if (!this.Csm.HasSkill("spiritual"))
-                return false;
-
-            return this.controllers[State.SPIRITUAL] is LovePeaceController lovePeaceController 
-                && lovePeaceController.IsLovedMonster(monster);
-        }
-
-        // private readonly CompanionDisplay hud;
-        private readonly IModEvents events;
-        internal IMonitor Monitor { get; private set; }
-
-        private readonly IContentLoader loader;
-        private readonly Countdown cooldown = new();
-        private Dictionary<State, IController> controllers;
-
-        internal AI_StateMachine(CompanionStateMachine csm, IModEvents events, IMonitor monitor)
-        {
-            this.events = events ?? throw new ArgumentException(nameof(events));
-            this.Monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-            this.Csm = csm ?? throw new ArgumentNullException(nameof(csm));
-            // this.hud = hud ?? throw new ArgumentNullException(nameof(hud));
-            // this.loader = csm.ContentLoader;
-            this.npc = csm.Companion;
-            this.farmer = csm.CompanionManager.Farmer;
-        }
-
-        public State CurrentState { get; private set; }
-        internal IController CurrentController { get => this.controllers[this.CurrentState]; }
-
-        internal CompanionStateMachine Csm { get; }
-        // public IContentLoader ContentLoader => this.Csm.ContentLoader;
-
-        public event EventHandler<EventArgsLocationChanged> LocationChanged;
-
-        /// <summary>
-        /// Setup AI state machine
-        /// </summary>
-        public void Setup()
-        {
-            this.controllers = new Dictionary<State, IController>()
-            {
-                [State.FOLLOW] = new FollowController(this),
-                // [State.FIGHT] = new FightController(this, this.loader, this.events, "(W)62"),
-                [State.FIGHT] = new FightController(this, this.events, "(W)62"),
-                // [State.IDLE] = new IdleController(this, this.loader),
-                // [State.FORAGE] = new ForageController(this, this.events),
-                [State.SPIRITUAL] = new LovePeaceController(this, this.events),
-                // [State.FISH] = new FishController(this, this.events),
-            };
-
-            // By default AI following the player
             this.ChangeState(State.FOLLOW);
-
-            // Do not forage immediatelly after recruit
-            this.cooldown.Set(FORAGING_COOLDOWN, 500);
-
-            this.events.GameLoop.TimeChanged += this.GameLoop_TimeChanged;
+            return;
         }
 
-        private void GameLoop_TimeChanged(object sender, TimeChangedEventArgs e)
+        float defendRadius = this.Csm.HasSkill("warrior")
+            ? FightController.DEFEND_TILE_RADIUS_WARRIOR
+            : FightController.DEFEND_TILE_RADIUS;
+        if (!this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)
+            && this.CurrentState != State.FIGHT
+            && this.IsFarmerNear()
+            && this.IsThereAnyMonster(defendRadius))
         {
-            // this.lifeSaved = false;
+            this.ChangeState(State.FIGHT);
         }
 
-        public bool PerformAction()
+        if (this.CurrentState != State.FOLLOW && this.activeController?.IsIdle == true)
         {
-            // TODO: Implement companion actions
-            // if (this.Csm.HasSkill("doctor") && (this.farmer.health < this.farmer.maxHealth / 3) && this.healCooldown == 0 && this.medkits != -1)
-            // {
-            //     this.TryHealFarmer();
-            //     return true;
-            // }
-            //
-            // if (this.Csm.HasSkill("forager")
-            //     && this.controllers[State.FORAGE] is ForageController fc
-            //     && fc.HasAnyForage()
-            //     && fc.GiveForageTo(this.farmer))
-            // {
-            //     Game1.drawDialogue(this.npc, this.Csm.Dialogues.GetFriendSpecificDialogueText(this.farmer, "giveForages"));
-            //     return true;
-            // }
-            //
-            // if (this.Csm.HasSkill("fisherman")
-            //     && this.controllers[State.FISH] is FishController fishController
-            //     && fishController.HasAnyFish()
-            //     && fishController.GiveFishesTo(this.farmer))
-            // {
-            //     Game1.drawDialogue(this.npc, this.Csm.Dialogues.GetFriendSpecificDialogueText(this.farmer, "giveFishes"));
-            //     return true;
-            // }
-
-            return false;
+            this.cooldown.Set(CHANGE_STATE_COOLDOWN, 100);
+            this.ChangeState(State.FOLLOW);
         }
+    }
 
-        public void ChangeState(State state)
+    public void Update(UpdateTickedEventArgs e)
+    {
+        if (this.disposed || !Context.IsWorldReady || this.npc.currentLocation == null)
+            return;
+
+        if (this.swimsuitUpdateDelayMs > 0)
         {
-            this.Monitor.Log($"AI changes state {this.CurrentState} -> {state}");
-
-            if (this.CurrentController != null)
-            {
-                this.CurrentController.Deactivate();
-            }
-
-            this.CurrentState = state;
-            this.CurrentController.Activate();
-            // this.hud.SetCompanionState(state);
-        }
-
-        private bool IsThereAnyMonster(float distance)
-        {
-            Monster monster = Helper.GetNearestMonsterToCharacter(this.npc, distance);
-            return monster != null && Helper.IsValidMonster(monster);
-        }
-
-        public bool IsFarmerNear(float maxDistance = 11f)
-        {
-            return Helper.Distance(this.farmer.Tile.ToPoint(), this.npc.Tile.ToPoint()) < maxDistance;
-        }
-
-        private bool CanForage()
-        {
-            // TODO
-            return false;
-            // return this.IsFarmerNear() 
-            //     && this.CurrentState != State.FORAGE
-            //     && !this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)
-            //     && !this.cooldown.IsRunning(FORAGING_COOLDOWN)
-            //     && this.controllers[State.FORAGE] is ForageController fc 
-            //     && fc.CanForage() 
-            //     && Game1.random.Next(1, 6) == 1;
-        }
-
-        private void CheckPotentialStateChange()
-        {
-            if (this.npc.swimming.Value || this.swimsuit)
-            {
-                if (this.CurrentState != State.FOLLOW)
-                {
-                    // Force follow when companion swim and is not in following state
-                    this.ChangeState(State.FOLLOW);
-                }
-
-                // Do not change state while companion are swimming
-                return;
-            }
-            
-            if (
-                // this.Csm.HasSkillsAny("fighter", "warrior")&&
-                !this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)
-                && this.CurrentState != State.FIGHT
-                && this.IsFarmerNear()
-                && this.IsThereAnyMonster(
-                    this.Csm.HasSkill("warrior") 
-                    ? FightController.DEFEND_TILE_RADIUS_WARRIOR 
-                    : FightController.DEFEND_TILE_RADIUS))
-            {
-                this.ChangeState(State.FIGHT);
-                this.Monitor.Log("A 50ft monster is here!");
-            }
-
-            // if (this.Csm.HasSkill("spiritual")
-            //     && !this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)
-            //     && this.CurrentState != State.SPIRITUAL
-            //     && (this.controllers[State.SPIRITUAL] as LovePeaceController).IsAngryMonstersHere)
-            // {
-            //     this.ChangeState(State.SPIRITUAL);
-            // }
-
-            if (this.CurrentState != State.FOLLOW && this.CurrentController.IsIdle)
-            {
-                this.cooldown.Set(CHANGE_STATE_COOLDOWN, 100);
-                this.ChangeState(State.FOLLOW);
-            }
-
-            // if (this.Csm.HasSkill("forager") && this.FollowOrIdle() && this.CanForage())
-            // {
-            //     this.cooldown.Set(FORAGING_COOLDOWN, Game1.random.Next(500, 2000));
-            //     this.ChangeState(State.FORAGE);
-            // }
-            //
-            // if (this.Csm.HasSkill("fisherman") && this.FollowOrIdle() && this.CanFish())
-            // {
-            //     this.cooldown.Set(FORAGING_COOLDOWN, Game1.random.Next(5000, 20000));
-            //     this.ChangeState(State.FISH);
-            // }
-
-            // if (this.CurrentState == State.FOLLOW && this.CurrentController.IsIdle)
-            // {
-            //     this.cooldown.Increase(FORAGING_COOLDOWN, Game1.random.Next(300, 700));
-            //     this.ChangeState(State.IDLE);
-            // }
-        }
-
-        private bool CanFish()
-        {
-            return false;
-            // TODO: Implement fishing
-            // bool isFarmerFishing = this.farmer.UsingTool && this.farmer.CurrentTool is FishingRod;
-            // return this.IsFarmerNear()
-            //     && this.CurrentState != State.FISH
-            //     && !this.cooldown.IsRunning(CHANGE_STATE_COOLDOWN)
-            //     && !this.cooldown.IsRunning(FISHING_COOLDOWN)
-            //     && !this.farmer.isMoving()
-            //     && this.npc.currentLocation.waterTiles != null
-            //     && this.controllers[State.FISH] is FishController fishController
-            //     && fishController.CanFish()
-            //     && (isFarmerFishing || Game1.random.Next(1, 24) == 1);
-        }
-
-        private bool FollowOrIdle()
-        {
-            return this.CurrentState == State.FOLLOW || this.CurrentState == State.IDLE;
-        }
-
-        public void Update(UpdateTickedEventArgs e)
-        {
-            if (e.IsMultipleOf(15))
-            {
-                this.DoSideEffects();
-                this.CheckPotentialStateChange();
-            }
-
-            this.cooldown.Update(e);
-            this.CheckSwimming();
-            //
-            // if (this.Csm.HasSkill("doctor"))
-            //     this.UpdateDoctor(e);
-
-            if (this.CurrentController != null)
-                this.CurrentController.Update(e);
-
-            foreach (var controller in this.controllers.Values)
-                controller.SideUpdate(e);
-        }
-
-        /// <summary>
-        /// Do side effects (like be scared and etc)
-        /// </summary>
-        private void DoSideEffects()
-        {
-            // Be scared
-            if (this.Csm.HasSkill("scared")
-                && this.IsThereAnyMonster(4f)
-                && !this.cooldown.IsRunning(SCARED_COOLDOWN)
-                && Game1.random.Next(0, this.GetNotBeScaredChanceIndex()) == 1)
-            {
-                this.npc.Halt();
-                this.npc.shake(1000);
-                this.npc.jump();
-                this.npc.currentLocation.playSound("batScreech");
-
-                // Scared companion can occassionally cry
-                if (!this.npc.IsEmoting && Game1.random.Next(0, 8) == 1)
-                {
-                    this.npc.doEmote(28);
-                    this.farmer.changeFriendship(-1, this.npc);
-                }
-
-                this.cooldown.Set(SCARED_COOLDOWN, Game1.random.Next(800, 2400));
-                this.cooldown.Set(CHANGE_STATE_COOLDOWN, 100);
-
-                if (this.CurrentState != State.FOLLOW)
-                {
-                    this.ChangeState(State.FOLLOW);
-                }
-            }
-        }
-
-        private int GetNotBeScaredChanceIndex()
-        {
-            int notBeScaredChance = 4 + this.farmer.CombatLevel / 2;
-
-            if (this.Csm.HasSkill("warrior"))
-            {
-                return notBeScaredChance * 2;
-            }
-
-            return notBeScaredChance;
-        }
-
-        public void ChangeLocation(GameLocation l)
-        {
-            GameLocation previousLocation = this.npc.currentLocation;
-            
-            // Warp NPC to player's location at theirs position
-            Helper.WarpTo(this.npc, l, this.farmer.Tile.ToPoint());
-            this.cooldown.Set(CHANGE_STATE_COOLDOWN, 30);
-
-            // Fire location changed event
-            this.OnLocationChanged(previousLocation, this.npc.currentLocation);
-            
-            
-            // delay for 1 second, then check if the NPC is in the water
-            // this.Monitor.Log("Delaying for 1 second", LogLevel.Debug);
-            Task.Delay(1000).ContinueWith((task) =>
-            {
-                // this.Monitor.Log("Checking if NPC is in the water", LogLevel.Debug);
+            this.swimsuitUpdateDelayMs -= Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds;
+            if (this.swimsuitUpdateDelayMs <= 0)
                 this.AfterWarpChangeSwimsuit();
-            });
         }
 
-        private void OnLocationChanged(GameLocation previous, GameLocation next)
+        if (e.IsMultipleOf(15))
         {
-            EventArgsLocationChanged args = new()
-            {
-                PreviousLocation = previous,
-                CurrentLocation = next,
-            };
-
-            this.LocationChanged?.Invoke(this, args);
+            this.DoSideEffects();
+            this.CheckPotentialStateChange();
         }
 
-        public void Dispose()
+        this.cooldown.Update(e);
+        this.CheckSwimming();
+        this.activeController?.Update(e);
+        foreach (IController controller in this.controllers.Values)
+            controller.SideUpdate(e);
+    }
+
+    private void DoSideEffects()
+    {
+        if (!this.Csm.HasSkill("scared") || !this.IsThereAnyMonster(4f)
+            || this.cooldown.IsRunning(SCARED_COOLDOWN)
+            || Game1.random.Next(0, this.GetNotBeScaredChanceIndex()) != 1)
         {
-            this.events.GameLoop.TimeChanged -= this.GameLoop_TimeChanged;
-            this.CurrentController.Deactivate();
-
-            foreach (var controller in this.controllers.OfType<IDisposable>())
-                controller.Dispose();
-
-            this.controllers.Clear();
-            this.controllers = null;
+            return;
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        this.npc.Halt();
+        this.npc.shake(1000);
+        this.npc.jump();
+        this.npc.currentLocation.playSound("batScreech");
+        if (!this.npc.IsEmoting && Game1.random.Next(0, 8) == 1)
         {
-            if (Context.IsWorldReady && this.CurrentController is IDrawable drawableController)
-            {
-               
-                // drawableController.Draw(spriteBatch);
-            }
-
-            if (Context.IsWorldReady && this.Csm.HasSkill("spiritual"))
-            {
-                (this.controllers[State.SPIRITUAL] as LovePeaceController).DrawLove(spriteBatch);
-            }
+            this.npc.doEmote(28);
+            this.farmer.changeFriendship(-1, this.npc);
         }
+
+        this.cooldown.Set(SCARED_COOLDOWN, Game1.random.Next(800, 2400));
+        this.cooldown.Set(CHANGE_STATE_COOLDOWN, 100);
+        this.ChangeState(State.FOLLOW);
+    }
+
+    private int GetNotBeScaredChanceIndex()
+    {
+        int chance = 4 + this.farmer.CombatLevel / 2;
+        return this.Csm.HasSkill("warrior") ? chance * 2 : chance;
+    }
+
+    public void ChangeLocation(GameLocation location)
+    {
+        if (this.disposed)
+            return;
+
+        GameLocation previousLocation = this.npc.currentLocation;
+        Helper.WarpTo(this.npc, location, this.farmer.Tile.ToPoint());
+        this.cooldown.Set(CHANGE_STATE_COOLDOWN, 30);
+        this.LocationChanged?.Invoke(this, new EventArgsLocationChanged
+        {
+            PreviousLocation = previousLocation,
+            CurrentLocation = this.npc.currentLocation
+        });
+
+        // Asset and NPC changes must stay on the game's update thread.
+        this.swimsuitUpdateDelayMs = 1000;
+    }
+
+    public void Dispose()
+    {
+        if (this.disposed)
+            return;
+
+        this.disposed = true;
+        this.swimsuitUpdateDelayMs = 0;
+        this.activeController?.Deactivate();
+        this.activeController = null;
+        foreach (IDisposable controller in this.controllers.Values.OfType<IDisposable>())
+            controller.Dispose();
+        this.controllers.Clear();
+        this.cooldown.Reset();
+        this.LocationChanged = null;
     }
 }

@@ -1,5 +1,4 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -8,10 +7,7 @@ using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using NpcFollowing.AI;
-using NpcFollowing.AI.Controller;
-using NpcFollowing.Dialogues;
-using NpcFollowing.Loader;
+using NpcFollowing.Combat;
 using NpcFollowing.Utils;
 
 namespace NpcFollowing.AI.Controller
@@ -29,7 +25,8 @@ namespace NpcFollowing.AI.Controller
         private const float PATH_NULL_RETURN_RADIUS = 4f * Game1.tileSize;
         private bool potentialIdle = false;
         private readonly IModEvents events;
-        private readonly MeleeWeapon weapon;
+        private readonly CompanionWeaponResolver weaponResolver;
+        private MeleeWeapon? weapon;
         // private readonly Dictionary<string, string> bubbles;
         private readonly Character realLeader;
         private readonly float attackRadius;
@@ -41,8 +38,7 @@ namespace NpcFollowing.AI.Controller
         private int fistCoolDown = 0;
         private bool defendFistUsed;
         private int attackSpeedPitch = 0;
-        private WeaponAttributes weaponAttrs;
-        private Dictionary<string, string> kissFrames;
+        private WeaponAttributes attackWeaponAttributes;
 
         public int SwingThreshold {
             get {
@@ -65,8 +61,7 @@ namespace NpcFollowing.AI.Controller
             }
         }
 
-        // public FightController(AI_StateMachine ai, IContentLoader content, IModEvents events, string sword) : base(ai)
-        public FightController(AI_StateMachine ai, IModEvents events, string sword) : base(ai)
+        public FightController(AI_StateMachine ai, IModEvents events) : base(ai)
         {
             this.attackRadius = 1.25f * Game1.tileSize;
             this.backupRadius = 0.9f * Game1.tileSize;
@@ -74,7 +69,7 @@ namespace NpcFollowing.AI.Controller
             this.leader = null;
             this.pathFinder.GoalCharacter = null;
             this.events = events;
-            this.weapon = this.GetSword(sword);
+            this.weaponResolver = new CompanionWeaponResolver(ai.Monitor);
             // this.bubbles = content.LoadStrings("Strings/SpeechBubbles");
             this.fightSpeechTriggerThres = ai.Csm.HasSkill("warrior") ? 0.25 : 0.7;
 
@@ -106,39 +101,6 @@ namespace NpcFollowing.AI.Controller
                     new FarmerSprite.AnimationFrame(15, 250),
                 },
         };
-        }
-
-        private string GetSwordIndex(string fallbackSword)
-        {
-            Farmer farmer = this.ai.farmer;
-            int level = farmer?.CombatLevel ?? 0;
-            // var swords = this.ai.ContentLoader.LoadMergedData<int, string>(
-            //     $"Data/Weapons/{this.follower.Name}", 
-            //     "Data/Weapons");
-
-            if (level == 0 && fallbackSword != "-2")
-            {
-                return fallbackSword;
-            }
-
-            // if (swords.TryGetValue(level, out string swordName))
-            // {
-            //     int swordId = Helper.GetSwordId(swordName);
-            //
-            //     if (swordId < 0 && swordName != "-1")
-            //         this.ai.Monitor.Log($"Unknown sword: {swordName}", LogLevel.Error);
-            //
-            //     return swordId;
-            // }
-
-            return "-1";
-        }
-
-        private MeleeWeapon GetSword(string fallBackSword)
-        {
-            fallBackSword = this.GetSwordIndex(fallBackSword);
-
-            return fallBackSword != "-1" ? new MeleeWeapon(fallBackSword) : null;
         }
 
         private void World_NpcListChanged(object sender, NpcListChangedEventArgs e)
@@ -323,22 +285,22 @@ namespace NpcFollowing.AI.Controller
             Rectangle effectiveArea = this.follower.GetBoundingBox();
             Rectangle enemyBox = this.leader.GetBoundingBox();
             Rectangle companionBox = this.follower.GetBoundingBox();
-            this.weaponAttrs = new WeaponAttributes(criticalFist ? null : this.weapon);
+            WeaponAttributes weaponAttrs = criticalFist ? new WeaponAttributes(null) : this.attackWeaponAttributes;
 
             if (criticalFist)
             {
-                this.weaponAttrs.knockBack *= 1.7f;
-                this.weaponAttrs.smashAround /= 2f;
+                weaponAttrs.knockBack *= 1.7f;
+                weaponAttrs.smashAround /= 2f;
                 this.fistCoolDown = 240;
             }
 
             if (this.ai.Csm.HasSkill("warrior"))
             {
                 // Enhanced skills ONLY for WARRIORS
-                this.weaponAttrs.minDamage += (int)Math.Round(this.weaponAttrs.minDamage * .02f); // 2% added min damage
-                this.weaponAttrs.knockBack += this.weaponAttrs.knockBack * (Game1.random.Next(1, 3) / 100); // 1-3% added knock back
-                this.weaponAttrs.addedEffectiveArea += (int)Math.Round(this.weaponAttrs.addedEffectiveArea * .01f); // 1% added effective area
-                this.weaponAttrs.critChance += Math.Max(0, (float)Game1.player.DailyLuck / 2); // added critical chance is half of daily luck. If luck is negative, no added critical chance
+                weaponAttrs.minDamage += (int)Math.Round(weaponAttrs.minDamage * .02f); // 2% added min damage
+                weaponAttrs.knockBack += weaponAttrs.knockBack * (Game1.random.Next(1, 3) / 100); // 1-3% added knock back
+                weaponAttrs.addedEffectiveArea += (int)Math.Round(weaponAttrs.addedEffectiveArea * .01f); // 1% added effective area
+                weaponAttrs.critChance += Math.Max(0, (float)Game1.player.DailyLuck / 2); // added critical chance is half of daily luck. If luck is negative, no added critical chance
             }
 
             if (criticalFist && this.follower.FacingDirection != 0)
@@ -359,7 +321,7 @@ namespace NpcFollowing.AI.Controller
             }
 
             companionBox.Inflate(4, 4); // Personal space
-            effectiveArea.Inflate((int)(effectiveArea.Width * this.weaponAttrs.smashAround + this.weaponAttrs.addedEffectiveArea), (int)(effectiveArea.Height * this.weaponAttrs.smashAround + this.weaponAttrs.addedEffectiveArea));
+            effectiveArea.Inflate((int)(effectiveArea.Width * weaponAttrs.smashAround + weaponAttrs.addedEffectiveArea), (int)(effectiveArea.Height * weaponAttrs.smashAround + weaponAttrs.addedEffectiveArea));
 
             // if (Compat.IsModLoaded(ModUids.PACIFISTMOD_UID))
             // {
@@ -383,8 +345,8 @@ namespace NpcFollowing.AI.Controller
                 return;
             }
 
-            if (this.follower.currentLocation.DamageMonsterByCompanion(effectiveArea, this.weaponAttrs.minDamage, this.weaponAttrs.maxDamage,
-                this.weaponAttrs.knockBack, this.weaponAttrs.addedPrecision, this.weaponAttrs.critChance, this.weaponAttrs.critMultiplier, !criticalFist,
+            if (this.follower.currentLocation.DamageMonsterByCompanion(effectiveArea, weaponAttrs.minDamage, weaponAttrs.maxDamage,
+                weaponAttrs.knockBack, weaponAttrs.addedPrecision, weaponAttrs.critChance, weaponAttrs.critMultiplier, !criticalFist,
                 this.follower, this.realLeader as Farmer))
             {
                 if (criticalFist)
@@ -406,12 +368,9 @@ namespace NpcFollowing.AI.Controller
         /// Do swipe sword effects
         /// </summary>
         /// <param name="type"></param>
-        /// <param name="facingDirection"></param>
         /// <param name="c"></param>
-        public void DoSwipe(int type, int facingDirection, Character c)
+        private void DoSwipe(int type, Character c)
         {
-            this.WeaponUpdate(facingDirection, 0, c);
-
             // if (Compat.IsModLoaded(ModUids.PACIFISTMOD_UID)) {
             //     c.currentLocation.localSound("dwop");
             //     return;
@@ -432,38 +391,15 @@ namespace NpcFollowing.AI.Controller
             }
         }
 
-        private void WeaponUpdate(int direction, int farmerMotionFrame, Character who)
-        {
-            int offset = 0;
-            switch (direction)
-            {
-                case 0:
-                    offset = 3;
-                    break;
-                case 1:
-                    offset = 2;
-                    break;
-                case 3:
-                    offset = 2;
-                    break;
-            }
-            if (farmerMotionFrame < 1)
-            {
-                this.weapon.CurrentParentTileIndex = this.weapon.InitialParentTileIndex;
-            }
-            else if (who.FacingDirection == 0 || (who.FacingDirection == 2 && farmerMotionFrame >= 2))
-            {
-                this.weapon.CurrentParentTileIndex = this.weapon.InitialParentTileIndex + 1;
-            }
-            this.weapon.CurrentParentTileIndex += offset;
-        }
-
         private int GetAttackPitch()
         {
             Farmer farmer = this.ai.farmer;
-            int combatLevel = farmer.CombatLevel;
-            int weaponSpeed = this.weapon?.speed.Value ?? 400;
-            int swipeDelay = (400 - weaponSpeed) / 4;
+            double combatLevel = farmer.CombatLevel;
+            double weaponSpeed = this.weapon?.speed.Value ?? 0;
+            // The vanilla speed stat changes a 400 ms swing by 40 ms per point.
+            // Combat updates run at 60 ticks per second; retain at least one tick.
+            double swipeMilliseconds = Math.Max(1d, 400d - weaponSpeed * 40d);
+            double swipeDelay = Math.Ceiling(swipeMilliseconds * 60d / 1000d);
 
             if (this.ai.Csm.HasSkill("warrior"))
             {
@@ -473,24 +409,32 @@ namespace NpcFollowing.AI.Controller
 
             double skill = Math.Max(combatLevel, 8) * Math.Log(Math.Pow(combatLevel, 2) + 1) + Math.Pow(combatLevel * 0.75, 2) + Math.Max(combatLevel, 5);
 
-            return (int)Math.Round(skill) 
+            double pitch = Math.Round(skill)
                 + Game1.random.Next(-10, 10) 
                 - swipeDelay
-                + (int)Math.Round(Game1.player.DailyLuck);
+                + Math.Round(Game1.player.DailyLuck);
+
+            // Bound both subtractions in the cooldown properties, even for extreme
+            // modded speed values, and retain the existing 14-tick minimum.
+            return (int)Math.Clamp(pitch, COOLDOWN_INITAL - (double)int.MaxValue, COOLDOWN_EFFECTIVE_THRESHOLD);
         }
 
         private void AnimateMe()
         {
+            // Keep the chosen inventory instance fixed until the next attack starts.
+            this.weapon = this.weaponResolver.Resolve(this.follower.Name, this.ai.Csm.Bag.Items, this.ai.Csm.Definition.DefaultWeaponId);
+            this.attackWeaponAttributes = new WeaponAttributes(this.weapon);
             this.attackSpeedPitch = this.GetAttackPitch();
             this.weaponSwingCooldown = this.CooldownTimeout;
             this.defendFistUsed = false;
             this.follower.Sprite.StopAnimation();
-            this.follower.Sprite.faceDirectionStandard(this.joystick.GetFacingDirectionFromMovement(new Vector2(this.leader.Position.X, this.leader.Position.Y)));
-            this.follower.Sprite.setCurrentAnimation(this.attackAnimation[this.follower.FacingDirection]);
+            NpcSpriteHelper.FaceDirectionStandard(this.follower, this.joystick.GetFacingDirectionFromMovement(new Vector2(this.leader.Position.X, this.leader.Position.Y)));
+            if (NpcSpriteHelper.HasStandardFrames(this.follower.Sprite))
+                this.follower.Sprite.setCurrentAnimation(this.attackAnimation[this.follower.FacingDirection]);
 
             if (this.weapon != null)
             {
-                this.DoSwipe(this.weapon.type.Value, this.follower.FacingDirection, this.follower);
+                this.DoSwipe(this.weapon.type.Value, this.follower);
             }
 
             this.DoDamage();
@@ -553,27 +497,6 @@ namespace NpcFollowing.AI.Controller
             this.CheckLeaderRadius();
         }
 
-        public void Draw(SpriteBatch spriteBatch)
-        {
-            if (this.weapon != null && this.weaponSwingCooldown > this.SwingThreshold && !this.defendFistUsed)
-            {
-                int frames = this.weapon.type.Value == 3 ? 4 : 7;
-                int duration = this.CooldownTimeout - this.SwingThreshold;
-                int tick = Math.Abs(this.weaponSwingCooldown - this.CooldownTimeout);
-                int currentFrame = this.CurrentFrame(tick, duration, frames);
-
-                // if (Compat.IsModLoaded(ModUids.PACIFISTMOD_UID))
-                //     currentFrame = 1;
-
-                // Helper.DrawDuringUse(currentFrame, this.follower.FacingDirection, spriteBatch, this.follower.getLocalPosition(Game1.viewport), this.follower, MeleeWeapon.getSourceRect(this.weapon.InitialParentTileIndex), this.weapon.type.Value, this.weapon.isOnSpecial);
-            }
-        }
-
-        private int CurrentFrame(int tick, int duration, int frames)
-        {
-            return (tick % duration) / (duration / frames);
-        }
-
         public override void Deactivate()
         {
             this.follower.Sprite.StopAnimation();
@@ -594,7 +517,7 @@ namespace NpcFollowing.AI.Controller
             public float smashAround;
             public int addedEffectiveArea;
 
-            public WeaponAttributes(MeleeWeapon weapon)
+            public WeaponAttributes(MeleeWeapon? weapon)
             {
                 this.minDamage = 1;
                 this.maxDamage = 3;

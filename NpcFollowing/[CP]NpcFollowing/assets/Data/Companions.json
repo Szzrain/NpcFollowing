@@ -1,0 +1,119 @@
+{
+  "Changes": [
+    {
+      "LogName": "Twelve vanilla companions",
+      "Action": "EditData",
+      "Target": "Mods/com.szzrain.npc_following/Companions",
+      "Entries": {
+        "Abigail": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Abigail.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Abigail.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Abigail.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Alex": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Alex.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Alex.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Alex.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Elliott": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Elliott.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Elliott.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Elliott.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Emily": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Emily.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Emily.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Emily.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Haley": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Haley.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Haley.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Haley.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Harvey": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Harvey.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Harvey.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Harvey.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Leah": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Leah.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Leah.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Leah.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Maru": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Maru.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Maru.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Maru.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Penny": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Penny.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Penny.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Penny.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Sam": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Sam.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Sam.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Sam.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Sebastian": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Sebastian.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Sebastian.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Sebastian.rejectLate}}",
+          "DefaultWeaponId": null
+        },
+        "Shane": {
+          "Enabled": true,
+          "MinimumHearts": 10,
+          "LatestRecruitTime": 2200,
+          "AcceptDialogue": "{{i18n:NpcFollowing.recruit.Shane.accept}}",
+          "RejectDialogue": "{{i18n:NpcFollowing.recruit.Shane.reject}}",
+          "RejectLateDialogue": "{{i18n:NpcFollowing.recruit.Shane.rejectLate}}",
+          "DefaultWeaponId": null
+        }
+      }
+    }
+  ]
+}

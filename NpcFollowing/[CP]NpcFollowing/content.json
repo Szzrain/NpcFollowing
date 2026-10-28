@@ -7,9 +7,9 @@
       "FromFile": "assets/Objects/Objects.json"
     },
     {
-      "LogName": "Dialogue",
+      "LogName": "Companion candidates",
       "Action": "Include",
-      "FromFile": "assets/Strings/Dialogue.json"
+      "FromFile": "assets/Data/Companions.json"
     }
   ]
 }

@@ -1,138 +1,137 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
+using NpcFollowing.Model;
+using NpcFollowing.Objects;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Locations;
 using StardewValley.Objects;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NpcFollowing.Model;
-using NpcFollowing.Objects;
 
-namespace NpcFollowing.Driver
+namespace NpcFollowing.Driver;
+
+/// <summary>Serializes delivered packages as vanilla chests and restores them after saving.</summary>
+internal class StuffDriver
 {
-    class StuffDriver
+    public List<BagDumpInfo> DumpedBags { get; private set; } = new();
+    public IMonitor Monitor { get; }
+    public IDataHelper DataHelper { get; }
+
+    public StuffDriver(IDataHelper dataHelper, IMonitor monitor)
     {
-        public List<BagDumpInfo> DumpedBags { get; set; }
-        public IMonitor Monitor { get; }
+        this.DataHelper = dataHelper;
+        this.Monitor = monitor;
+    }
 
-        public StuffDriver(IDataHelper dataHelper, IMonitor monitor)
+    public void RegisterEvents(IModEvents events)
+    {
+        events.GameLoop.Saving += this.GameLoop_Saving;
+        events.GameLoop.SaveLoaded += this.GameLoop_SaveLoaded;
+        events.GameLoop.Saved += this.GameLoop_Saved;
+        events.GameLoop.ReturnedToTitle += this.GameLoop_ReturnedToTitle;
+    }
+
+    public void PrepareDeliveredBagsToSave()
+    {
+        if (Context.IsMultiplayer || Utility.getHomeOfFarmer(Game1.player) is not FarmHouse house)
+            return;
+
+        this.DumpedBags.Clear();
+        // Replacing entries while enumerating the live dictionary invalidates its iterator.
+        foreach (var entry in house.objects.Pairs.ToArray())
         {
-            this.DataHelper = dataHelper;
-            this.DumpedBags = new List<BagDumpInfo>();
-            this.Monitor = monitor;
+            if (entry.Value is not Package bag)
+                continue;
+
+            Chest chest = new(true) { TileLocation = entry.Key };
+            chest.Items.AddRange(bag.Items);
+            house.objects[entry.Key] = chest;
+            bag.Items.Clear();
+            this.DumpedBags.Add(new BagDumpInfo
+            {
+                source = bag.GivenFrom,
+                giftboxIndex = bag.giftboxIndex.Value,
+                message = bag.Message,
+                posX = (int)entry.Key.X,
+                posY = (int)entry.Key.Y
+            });
         }
 
-        public void RegisterEvents(IModEvents events)
+        this.Monitor.Log($"Prepared {this.DumpedBags.Count} delivered bags for saving.", LogLevel.Trace);
+    }
+
+    public void ReviveDeliveredBags()
+    {
+        if (Context.IsMultiplayer || Utility.getHomeOfFarmer(Game1.player) is not FarmHouse house)
+            return;
+
+        int restored = 0;
+        foreach (BagDumpInfo info in this.DumpedBags)
         {
-            events.GameLoop.Saving += this.GameLoop_Saving;
-            events.GameLoop.SaveLoaded += this.GameLoop_SaveLoaded;
-            events.GameLoop.Saved += this.GameLoop_Saved;
+            Vector2 position = new(info.posX, info.posY);
+            if (!house.objects.TryGetValue(position, out StardewValley.Object obj) || obj is not Chest chest)
+            {
+                this.Monitor.Log($"Couldn't restore delivered bag at {position}: no chest exists there.", LogLevel.Warn);
+                continue;
+            }
+
+            // Saved and SaveLoaded can both restore the same package; never transfer it twice.
+            if (chest is Package)
+                continue;
+
+            Package bag = new(chest.Items.ToList(), position, info.giftboxIndex)
+            {
+                GivenFrom = info.source,
+                Message = info.message
+            };
+            house.objects[position] = bag;
+            chest.Items.Clear();
+            restored++;
         }
 
-        private void GameLoop_Saved(object sender, SavedEventArgs e)
+        this.Monitor.Log($"Restored {restored} delivered bags.", LogLevel.Trace);
+    }
+
+    private void GameLoop_ReturnedToTitle(object? sender, ReturnedToTitleEventArgs e)
+    {
+        this.DumpedBags.Clear();
+    }
+
+    private void GameLoop_Saved(object? sender, SavedEventArgs e)
+    {
+        if (!Context.IsMultiplayer)
+            this.ReviveDeliveredBags();
+    }
+
+    private void GameLoop_SaveLoaded(object? sender, SaveLoadedEventArgs e)
+    {
+        this.DumpedBags.Clear();
+        if (Context.IsMultiplayer)
+            return;
+
+        try
         {
+            this.DumpedBags = this.DataHelper.ReadSaveData<List<BagDumpInfo>>("dumped-bags") ?? new();
             this.ReviveDeliveredBags();
         }
-
-        public void PrepareDeliveredBagsToSave()
+        catch (InvalidOperationException ex)
         {
-            FarmHouse house = Game1.getLocationFromName("FarmHouse") as FarmHouse;
-
-            this.DumpedBags.Clear();
-
-            foreach (var objKv in house.objects.Pairs)
-            {
-                if (!(objKv.Value is Package bag))
-                    continue;
-
-                BagDumpInfo bagInfo = new BagDumpInfo()
-                {
-                    source = bag.GivenFrom,
-                    giftboxIndex = bag.giftboxIndex.Value,
-                    message = bag.Message,
-                    posX = (int)objKv.Key.X,
-                    posY = (int)objKv.Key.Y,
-                };
-                Chest chest = new Chest(true)
-                {
-                    TileLocation = bag.TileLocation
-                };
-                chest.Items.AddRange(bag.Items);
-
-                house.objects[objKv.Key] = chest;
-
-                this.DumpedBags.Add(bagInfo);
-                this.Monitor.Log($"Found bag to save from {bagInfo.source} at position {bagInfo.posX},{bagInfo.posY} with {chest.Items.Count} items");
-            }
-
-            this.Monitor.Log($"Detected {this.DumpedBags.Count} bags to save.");
+            this.Monitor.Log($"Couldn't load delivered bags: {ex}", LogLevel.Error);
         }
+    }
 
-        public IDataHelper DataHelper { get; }
+    private void GameLoop_Saving(object? sender, SavingEventArgs e)
+    {
+        if (Context.IsMultiplayer)
+            return;
 
-        public void ReviveDeliveredBags()
+        try
         {
-            int reviveCount = 0;
-            FarmHouse house = Game1.getLocationFromName("FarmHouse") as FarmHouse;
-
-            foreach(BagDumpInfo bagInfo in this.DumpedBags)
-            {
-                Vector2 position = new Vector2(bagInfo.posX, bagInfo.posY);
-
-                if (!house.objects.TryGetValue(position, out StardewValley.Object obj) && !(obj is Chest))
-                {
-                    this.Monitor.Log($"Bag at position ${position} can't be revived!", LogLevel.Warn);
-                    continue;
-                }
-
-                Chest chest = obj as Chest;
-                Package bag = new Package(chest.Items.ToList(), position, 0)
-                {
-                    GivenFrom = bagInfo.source,
-                    Message = bagInfo.message
-                };
-
-                house.objects[position] = bag;
-                reviveCount++;
-
-                this.Monitor.Log($"Revive dumpedBag on position ${bag.TileLocation} (Items count: {bag.Items.Count})");
-            }
-
-            this.Monitor.Log($"Revived {reviveCount} dumped bags!", LogLevel.Info);
+            this.PrepareDeliveredBagsToSave();
+            this.DataHelper.WriteSaveData("dumped-bags", this.DumpedBags);
         }
-
-        private void GameLoop_SaveLoaded(object sender, SaveLoadedEventArgs e)
+        catch (InvalidOperationException ex)
         {
-            try
-            {
-                List<BagDumpInfo> dumpedBags = this.DataHelper.ReadSaveData<List<BagDumpInfo>>("dumped-bags");
-                this.DumpedBags = dumpedBags ?? new List<BagDumpInfo>();
-                this.Monitor.Log($"Count of possible bags: {this.DumpedBags.Count}");
-                this.Monitor.Log("Dumped bags loaded from save file", LogLevel.Info);
-                this.ReviveDeliveredBags();
-            }
-            catch (InvalidOperationException ex)
-            {
-                this.Monitor.Log($"Error while loading dumped bag from savefile: {ex.Message}");
-            }
-        }
-
-        private void GameLoop_Saving(object sender, SavingEventArgs e)
-        {
-            try
-            {
-                this.PrepareDeliveredBagsToSave();
-                this.DataHelper.WriteSaveData("dumped-bags", this.DumpedBags ?? new List<BagDumpInfo>());
-                this.Monitor.Log("Dumped bags successfully saved to savefile.", LogLevel.Info);
-            }
-            catch (InvalidOperationException ex)
-            {
-                this.Monitor.Log($"Error while saving dumped bags: {ex.Message}", LogLevel.Error);
-            }
+            this.Monitor.Log($"Couldn't save delivered bags: {ex}", LogLevel.Error);
         }
     }
 }

@@ -1,12 +1,19 @@
 {
   "Name": "[CP]NPC Following",
   "Author": "Szzrain",
-  "Version": "1.0.0",
+  "Version": "1.1.1",
   "Description": "This mod allows you to have a NPC following you. Part of NPC Following mod",
   "UniqueID": "com.szzrain.npc_following.cp",
   "MinimumApiVersion": "4.0.8",
   "UpdateKeys": [],
   "ContentPackFor": {
     "UniqueID": "Pathoschild.ContentPatcher"
-  }
+  },
+  "Dependencies": [
+    {
+      "UniqueID": "com.szzrain.npc_following",
+      "MinimumVersion": "1.1.1",
+      "IsRequired": true
+    }
+  ]
 }

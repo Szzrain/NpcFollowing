@@ -7,6 +7,12 @@
       "FromFile": "assets/texture/debug_stick.png"
     },
     {
+      "Action": "Load",
+      "Priority": "Low",
+      "Target": "Mods/szzrain/location.tool",
+      "FromFile": "assets/texture/l.png"
+    },
+    {
       "Action": "EditData",
       "Target": "Data/Objects",
       "Entries": {
@@ -24,7 +30,32 @@
           "ExcludeFromShippingCollection": true,
           "ExcludeFromRandomSale": true,
           "ContextTags": [
-            "not_giftable"
+            "not_giftable",
+            "not_shippable"
+          ]
+        }
+      }
+    },
+    {
+      "Action": "EditData",
+      "Target": "Data/Objects",
+      "Entries": {
+        "szzrain.NpcFollowing.object.location.tool": {
+          "Name": "NpcFollowing.object.location.tool",
+          "DisplayName": "{{i18n:NpcFollowing.object.location.tool.name}}",
+          "Description": "{{i18n:NpcFollowing.object.location.tool.description}}",
+          "Category": 0,
+          "Price": 0,
+          "Texture": "Mods\\szzrain\\location.tool",
+          "SpriteIndex": 0,
+          "CanBePlacedIndoors": true,
+          "CanBePlacedOutdoors": true,
+          "ExcludeFromFishingCollection": true,
+          "ExcludeFromShippingCollection": true,
+          "ExcludeFromRandomSale": true,
+          "ContextTags": [
+            "not_giftable",
+            "not_shippable"
           ]
         }
       }

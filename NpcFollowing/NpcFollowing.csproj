@@ -6,9 +6,10 @@
         <Nullable>enable</Nullable>
         <EnableHarmony>true</EnableHarmony>
         <RootNamespace>NpcFollowing</RootNamespace>
+        <Version>1.1.1</Version>
     </PropertyGroup>
     
-    <Target Name="CopyDirectories" AfterTargets="Build">
+    <Target Name="CopyDirectories" AfterTargets="Build" Condition="'$(EnableModDeploy)' != 'false'">
         <Exec Command='xcopy "$(ProjectDir)[CP]NpcFollowing" "$(GamePath)/Mods/[CP]NpcFollowing" /E /I /Q /Y' />
     </Target>
     

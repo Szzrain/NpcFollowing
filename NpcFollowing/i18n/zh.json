@@ -1,0 +1,10 @@
+{
+  "recruit.question": "是否请求{{npc}}跟随你一起冒险？",
+  "recruit.accept.fallback": "好的，我们走吧！",
+  "recruit.reject.fallback": "不好意思，我想先和你再熟悉一些。",
+  "recruit.reject.late.fallback": "太晚了，我现在不方便出门。改天再一起去吧。",
+  "companion.menu.question": "你想做什么？",
+  "companion.menu.bag": "打开背包",
+  "companion.menu.dismiss": "让{{npc}}回去",
+  "companion.menu.nothing": "没什么"
+}

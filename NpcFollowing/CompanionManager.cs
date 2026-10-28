@@ -1,283 +1,248 @@
-﻿using System;
-using System.Collections.Generic;
-using StardewValley;
-using StardewModdingAPI;
-using StardewModdingAPI.Events;
-using NpcFollowing.Utils;
-using static NpcFollowing.StateMachine.CompanionStateMachine;
-using NpcFollowing.HUD;
-using NpcFollowing.Story;
-using System.Linq;
-using NpcFollowing.Driver;
 using NpcFollowing.Loader;
 using NpcFollowing.Model;
+using NpcFollowing.Recruitment;
 using NpcFollowing.StateMachine;
 using NpcFollowing.StateMachine.State;
+using StardewModdingAPI;
+using StardewValley;
+using StardewValley.Characters;
+using StardewValley.Monsters;
 
-// using ExpandedPreconditionsUtility;
+namespace NpcFollowing;
 
-namespace NpcFollowing
+/// <summary>Coordinates content definitions and NPC state for the currently loaded single-player save.</summary>
+internal sealed class CompanionManager
 {
-    internal class CompanionManager
+    private readonly IModHelper helper;
+    private readonly IMonitor monitor;
+    private readonly CompanionContent content;
+    private readonly HashSet<string> missingWarnings = new();
+    private readonly HashSet<string> unavailableToday = new(StringComparer.Ordinal);
+    private Dictionary<string, CompanionDefinition> definitions = new(StringComparer.Ordinal);
+    private bool refreshPending;
+    private bool initialized;
+
+    public Dictionary<string, CompanionStateMachine> PossibleCompanions { get; } = new(StringComparer.Ordinal);
+    public RecruitmentService Recruitment { get; }
+    public Farmer Farmer => Game1.player;
+
+    public CompanionManager(IModHelper helper, IMonitor monitor, CompanionContent content)
     {
-        private readonly DialogueDriver dialogueDriver;
-        // private readonly HintDriver hintDriver;
-        private readonly IMonitor monitor;
+        this.helper = helper;
+        this.monitor = monitor;
+        this.content = content;
+        Recruitment = new RecruitmentService(monitor, key => Translate(key));
+    }
 
-        public Dictionary<string, CompanionStateMachine> PossibleCompanions { get; }
-        // public IGameMaster GameMaster { get; }
-        // public IConditionsChecker EPU { get; }
+    public string Translate(string key, object? tokens = null) => helper.Translation.Get(key, tokens).ToString();
+    internal bool CanRecruit() => initialized && Context.IsWorldReady && !Context.IsMultiplayer;
+    internal bool IsUnavailableToday(string name) => unavailableToday.Contains(name);
+    internal void MarkUnavailableToday(string name) => unavailableToday.Add(name);
+    internal bool IsCandidate(NPC npc) => PossibleCompanions.TryGetValue(npc.Name, out var state)
+        && ReferenceEquals(state.Companion, npc)
+        && (state.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED || IsRegularCandidate(npc));
 
-        public CompanionStateMachine GetRecruitedCompanion()
+    private static bool IsSocialCandidate(NPC npc) => npc is not (Monster or Horse or Junimo or Child or Pet)
+        && npc.CanSocialize;
+
+    private bool IsRegularCandidate(NPC npc) => definitions.ContainsKey(npc.Name) && IsSocialCandidate(npc);
+
+    /// <summary>The debug tool grants a temporary session without changing NPC social data or the content whitelist.</summary>
+    internal bool ToggleDebugCompanion(NPC npc)
+    {
+        if (!CanRecruit())
+            return false;
+        if (string.IsNullOrWhiteSpace(npc.Name) || npc.Sprite is null || npc.currentLocation?.Map is null)
         {
-            return this.PossibleCompanions.Values.Single(csm => csm.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED);
-        }
-
-        public bool IsRecruitedAnyone()
-        {
-            return this.PossibleCompanions.Values.Count(csm => csm.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED) > 0;
-        }
-
-        // public CompanionDisplay Hud { get; }
-        // public Config Config { get; }
-
-        public Farmer Farmer
-        {
-            get
-            {
-                if (Context.IsWorldReady)
-                    return Game1.player;
-                return null;
-            }
-        }
-
-        // public CompanionManager(IGameMaster gameMaster, DialogueDriver dialogueDriver, HintDriver hintDriver, CompanionDisplay hud, Config config, IConditionsChecker epu, IMonitor monitor)
-        // {
-        //     this.GameMaster = gameMaster ?? throw new ArgumentNullException(nameof(gameMaster));
-        //     this.dialogueDriver = dialogueDriver ?? throw new ArgumentNullException(nameof(dialogueDriver));
-        //     this.hintDriver = hintDriver ?? throw new ArgumentNullException(nameof(hintDriver));
-        //     this.Hud = hud ?? throw new ArgumentNullException(nameof(hud));
-        //     this.monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-        //     this.PossibleCompanions = new Dictionary<string, CompanionStateMachine>();
-        //     this.Config = config ?? throw new ArgumentNullException(nameof(config));
-        //     // this.EPU = epu ?? throw new ArgumentNullException(nameof(epu));
-        //
-        //     this.dialogueDriver.DialogueChanged += this.DialogueDriver_DialogueChanged;
-        //     this.hintDriver.CheckHint += this.HintDriver_CheckHint;
-        // }
-        
-        public CompanionManager(IModHelper helper, IMonitor monitor)
-        {
-            helper = helper ?? throw new ArgumentNullException(nameof(helper));
-            // this.GameMaster = gameMaster ?? throw new ArgumentNullException(nameof(gameMaster));
-            this.dialogueDriver = new DialogueDriver(helper.Events);
-            // this.hintDriver = hintDriver ?? throw new ArgumentNullException(nameof(hintDriver));
-            // this.Hud = hud ?? throw new ArgumentNullException(nameof(hud));
-            this.monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-            this.PossibleCompanions = new Dictionary<string, CompanionStateMachine>();
-            // this.Config = config ?? throw new ArgumentNullException(nameof(config));
-            // this.EPU = epu ?? throw new ArgumentNullException(nameof(epu));
-
-            // this.dialogueDriver.DialogueChanged += this.DialogueDriver_DialogueChanged;
-            // this.hintDriver.CheckHint += this.HintDriver_CheckHint;
-        }
-
-        // <summary>
-        // Dialogue event handler. 
-        // Works with previous dialogue when dialogue has been changed
-        // </summary>
-        // <param name="sender">Who sent it?</param>
-        // <param name="e">Changed dialogue event arguments</param>
-        // TODO
-        // private void DialogueDriver_DialogueChanged(object sender, DialogueChangedArgs e)
-        // {
-        //     NPC n = e.PreviousDialogue?.speaker; // Who said previous dialogue?
-        //
-        //     // No previous dialogue? Forget it.
-        //     if (e.PreviousDialogue == null || n == null)
-        //         return;
-        //
-        //     // Check if spoken it any our companion
-        //     if (this.PossibleCompanions.TryGetValue(n.Name, out CompanionStateMachine csm))
-        //     {
-        //         csm.OnDialogueSpoken(e.PreviousDialogue); // Companion can react on this dialogue
-        //     }
-        // }
-
-        /// <summary>
-        /// Handle check hint event from event driver
-        /// </summary>
-        /// <param name="sender">Who sent this event?</param>
-        /// <param name="e">Hint checker event arguments</param>
-        /// TODO
-        // private void HintDriver_CheckHint(object sender, CheckHintArgs e)
-        // {
-        //     if (e.Npc == null)
-        //         return;
-        //
-        //     // Show dialogue icon hint (NPC can speak bubble) if:
-        //     // - cursor is on our companion 
-        //     // - and they can resolve our dialogue requests 
-        //     // - and has'nt any dialogues in queue 
-        //     // - and we can ask this companion for following (recruit)
-        //     if (this.PossibleCompanions.TryGetValue(e.Npc.Name, out CompanionStateMachine csm)
-        //         && this.CanRecruit()
-        //         && csm.Name == e.Npc?.Name
-        //         && csm.CanPerformAction()
-        //         && !this.Config.RequestsWithShift
-        //         && e.Npc.CurrentDialogue.Count == 0
-        //         && Helper.CanRequestDialog(this.Farmer, e.Npc, csm.CurrentStateFlag == StateFlag.RECRUITED))
-        //     {
-        //         this.hintDriver.ShowHint(
-        //             this.Config.UseAsk2FollowCursor 
-        //                 ? HintDriver.Hint.ASK2FOLLOW 
-        //                 : HintDriver.Hint.DIALOGUE);
-        //     }
-        // }
-
-        public bool CheckAction(Farmer who, NPC withWhom, GameLocation location)
-        {
-            if (this.PossibleCompanions.TryGetValue(withWhom.Name, out CompanionStateMachine csm) && csm.Name == withWhom.Name)
-            {
-                return csm.CheckAction(who, location);
-            }
-            else
-            {
-                this.monitor.Log($"Companion '{withWhom.Name}' not found in companion list!", LogLevel.Error);
-            }
-
+            monitor.Log($"Cannot force recruit '{npc.Name}': the NPC has no usable name, sprite, or map location.", LogLevel.Warn);
             return false;
         }
 
-        internal bool CanRecruit()
+        if (PossibleCompanions.TryGetValue(npc.Name, out var existing))
         {
-            if (!Context.IsWorldReady || this.Farmer == null)
+            if (ReferenceEquals(existing.Companion, npc))
             {
-                return false;
-            }
-
-            return true;
-            // if (this.GameMaster.Mode == GameMasterMode.OFFLINE)
-            //     return true; // In non-adventure mode we can recruit a companion
-            //
-            // return this.GameMaster.Data.GetPlayerState(this.Farmer).isEligible;
-        }
-
-        /// <summary>
-        /// When any companion was recruited
-        /// </summary>
-        /// <param name="companionName">NPC name of companion</param>
-        internal void CompanionRecuited(string companionName)
-        {
-            // foreach (var csmKv in this.PossibleCompanions)
-            // {
-            //     // All other companions are unavailable now (Player can't recruit them right now)
-            //     if (csmKv.Value.Name != companionName)
-            //         csmKv.Value.MakeUnavailable();
-            // }
-
-            // this.GameMaster.SendEventMessage(new RecruitMessage(companionName));
-            this.monitor.Log($"You are recruited {companionName} companion.");
-        }
-
-        /// <summary>
-        /// Reset all state machines of companions
-        /// </summary>
-        public void ResetStateMachines()
-        {
-            foreach (var companionKv in this.PossibleCompanions)
-                companionKv.Value.ResetStateMachine();
-        }
-
-        /// <summary>
-        /// Setup all companions for new day
-        /// </summary>
-        public void NewDaySetup()
-        {
-            // For each companion state machine call new day setup method
-            foreach (var companion in this.PossibleCompanions.Values)
-            {
-                try
+                if (existing.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED)
                 {
-                    companion.SetupForNewDay();
-                }
-                catch (CompanionStateException e)
-                {
-                    this.monitor.Log($"Error while trying setup new day for '{companion.Name}' companion: {e.Message}", LogLevel.Error);
-                    companion.Kill();
+                    existing.Dismiss();
+                    return true;
                 }
             }
-
-            this.monitor.Log("Companions are ready for new day!", LogLevel.Info);
-        }
-
-        /// <summary>
-        /// Dump player's items from companion's bag
-        /// </summary>
-        public void DumpCompanionNonEmptyBags()
-        {
-            foreach (var csm in this.PossibleCompanions)
-                if (!csm.Value.Bag.isEmpty())
-                    csm.Value.DumpBagInFarmHouse();
-        }
-
-        /// <summary>
-        /// When any companion dissmised (relieved from duty, unfollow player)
-        /// </summary>
-        /// <param name="keepUnavailable">Set this companion unavailable after dismiss?</param>
-        internal void CompanionDissmised(bool keepUnavailable = false)
-        {
-            foreach (var csmKv in this.PossibleCompanions)
+            else
             {
-                if (keepUnavailable)
-                    csmKv.Value.MakeUnavailable();
-                else if (!csmKv.Value.RecruitedToday)
-                    csmKv.Value.MakeAvailable();
-            }
-        }
-
-        /// <summary>
-        /// Companion initializator. Call it after saved game is loaded
-        /// </summary>
-        /// <param name="loader"></param>
-        /// <param name="gameEvents"></param>
-        /// <param name="reflection"></param>
-        public void InitializeCompanions(IContentLoader loader, IModEvents gameEvents, IReflectionHelper reflection)
-        {
-            Dictionary<string, string> dispositions = loader.LoadData<string, string>("Data/CompanionDispositions");
-
-            foreach (string npcName in dispositions.Keys)
-            {
-                // CompanionStateMachine csm = new CompanionStateMachine(npcName, this, new CompanionMetaData(dispositions[npcName]), loader, reflection, this.monitor);
-                CompanionStateMachine csm = new CompanionStateMachine(npcName, this, this.monitor);
-                Dictionary<CompanionStateMachine.StateFlag, ICompanionState> stateHandlers = new Dictionary<CompanionStateMachine.StateFlag, ICompanionState>()
+                if (existing.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED)
                 {
-                    [CompanionStateMachine.StateFlag.RESET] = new ResetState(csm, gameEvents, this.monitor),
-                    [CompanionStateMachine.StateFlag.AVAILABLE] = new AvailableState(csm, gameEvents, this.monitor),
-                    [CompanionStateMachine.StateFlag.RECRUITED] = new RecruitedState(csm, gameEvents, this.monitor),
-                    [CompanionStateMachine.StateFlag.UNAVAILABLE] = new UnavailableState(csm, gameEvents, this.monitor),
-                };
-
-                csm.Setup(stateHandlers);
-                this.PossibleCompanions.Add(npcName, csm);
+                    monitor.Log($"Cannot force recruit '{npc.Name}': another NPC instance with the same name is already following.", LogLevel.Warn);
+                    return false;
+                }
+                if (!ReleaseCompanion(existing))
+                    return false;
+                existing = null;
             }
-
-            this.monitor.Log($"Initalized {this.PossibleCompanions.Count} companions.", LogLevel.Info);
         }
 
-        /// <summary>
-        /// Companion uninitalizer. Call it after game exited (return to title)
-        /// </summary>
-        public void UninitializeCompanions()
+        bool created = existing is null;
+        var state = existing ?? CreateCompanion(npc,
+            definitions.TryGetValue(npc.Name, out var definition) ? definition : new CompanionDefinition());
+        try
         {
-            foreach (var companionKv in this.PossibleCompanions)
+            state.MakeAvailable();
+            if (state.Recruit(force: true))
             {
-                companionKv.Value.Dispose();
-                this.monitor.Log($"{companionKv.Key} disposed!");
+                monitor.Log($"Force-recruited debug companion '{npc.Name}'.", LogLevel.Debug);
+                return true;
             }
-
-            this.PossibleCompanions.Clear();
-            this.monitor.Log("Companions uninitialized", LogLevel.Info);
         }
+        catch
+        {
+            if (created)
+                ReleaseCompanion(state);
+            else
+                state.MakeUnavailable();
+            throw;
+        }
+
+        if (created)
+            ReleaseCompanion(state);
+        return false;
+    }
+
+    private CompanionStateMachine CreateCompanion(NPC npc, CompanionDefinition definition)
+    {
+        var state = new CompanionStateMachine(this, npc, definition, monitor);
+        state.Setup(new Dictionary<CompanionStateMachine.StateFlag, ICompanionState>
+        {
+            [CompanionStateMachine.StateFlag.RESET] = new ResetState(state, helper.Events, monitor),
+            [CompanionStateMachine.StateFlag.AVAILABLE] = new AvailableState(state, helper.Events, monitor),
+            [CompanionStateMachine.StateFlag.RECRUITED] = new RecruitedState(state, helper.Events, monitor),
+            [CompanionStateMachine.StateFlag.UNAVAILABLE] = new UnavailableState(state, helper.Events, monitor)
+        });
+        PossibleCompanions.Add(npc.Name, state);
+        return state;
+    }
+
+    private bool ReleaseCompanion(CompanionStateMachine state)
+    {
+        if (!state.DumpBagInFarmHouse())
+            return false;
+        state.Dispose();
+        PossibleCompanions.Remove(state.Name);
+        return true;
+    }
+
+    public void InitializeCompanions()
+    {
+        UninitializeCompanions();
+        if (!Context.IsWorldReady || Context.IsMultiplayer)
+            return;
+        initialized = true;
+        content.MarkDirty();
+        RefreshCandidates();
+        monitor.Log($"Loaded {PossibleCompanions.Count} companion candidates from content packs.", LogLevel.Info);
+    }
+
+    public void Update()
+    {
+        if (CanRecruit() && Context.IsPlayerFree && Game1.activeClickableMenu is null && (content.IsDirty || refreshPending))
+            RefreshCandidates();
+    }
+
+    private void RefreshCandidates()
+    {
+        if (content.IsDirty)
+        {
+            var loaded = content.Load();
+            if (loaded is not null)
+                definitions = loaded;
+        }
+        refreshPending = false;
+
+        foreach (var pair in PossibleCompanions.ToArray())
+        {
+            var state = pair.Value;
+            if (state.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED)
+                continue;
+            NPC? npc = Game1.getCharacterFromName(pair.Key, false);
+            if (npc is null || !IsRegularCandidate(npc) || !ReferenceEquals(npc, state.Companion))
+            {
+                state.MakeUnavailable();
+                ReleaseCompanion(state);
+            }
+            else
+                state.Definition = definitions[pair.Key].Snapshot();
+        }
+
+        foreach (var pair in definitions)
+        {
+            if (PossibleCompanions.ContainsKey(pair.Key))
+                continue;
+            NPC? npc = Game1.getCharacterFromName(pair.Key, false);
+            if (npc is null || !IsSocialCandidate(npc))
+            {
+                if (missingWarnings.Add(pair.Key))
+                    monitor.Log($"Companion '{pair.Key}' is not an available social NPC in this save; skipping it.", LogLevel.Warn);
+                continue;
+            }
+            var state = CreateCompanion(npc, pair.Value);
+            state.SetupForNewDay();
+        }
+    }
+
+    public void NewDaySetup()
+    {
+        if (!CanRecruit())
+            return;
+        foreach (var state in PossibleCompanions.Values.Where(state => state.IsDebugSession).ToArray())
+            state.Dismiss();
+        unavailableToday.Clear();
+        content.MarkDirty();
+        RefreshCandidates();
+        foreach (var state in PossibleCompanions.Values.ToArray())
+            state.SetupForNewDay();
+    }
+
+    public bool CheckAction(Farmer who, NPC npc, GameLocation location) => CanRecruit()
+        && IsCandidate(npc)
+        && PossibleCompanions.TryGetValue(npc.Name, out var state)
+        && ReferenceEquals(state.Companion, npc) && state.CheckAction(who, location);
+
+    internal void CompanionRecuited(string name) => monitor.Log($"Recruited companion '{name}'.", LogLevel.Debug);
+    internal void CompanionDissmised(CompanionStateMachine state)
+    {
+        // A debug-only NPC must not become an ordinary recruit after its session ends.
+        if (!IsRegularCandidate(state.Companion))
+            ReleaseCompanion(state);
+        refreshPending = true;
+    }
+
+    public void ResetStateMachines()
+    {
+        foreach (var state in PossibleCompanions.Values.ToArray())
+        {
+            if (state.CurrentStateFlag == CompanionStateMachine.StateFlag.RECRUITED)
+                state.Dismiss();
+            else
+                state.ResetStateMachine();
+        }
+    }
+
+    public void DumpCompanionNonEmptyBags()
+    {
+        foreach (var state in PossibleCompanions.Values)
+            state.DumpBagInFarmHouse();
+    }
+
+    public void UninitializeCompanions()
+    {
+        foreach (var state in PossibleCompanions.Values)
+            state.Dispose();
+        PossibleCompanions.Clear();
+        definitions.Clear();
+        missingWarnings.Clear();
+        unavailableToday.Clear();
+        Recruitment.Reset();
+        initialized = false;
+        refreshPending = false;
+        content.MarkDirty();
     }
 }

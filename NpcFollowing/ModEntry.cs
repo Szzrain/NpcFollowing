@@ -26,6 +26,9 @@ internal sealed class ModEntry : Mod
         harmony.Patch(AccessTools.Method(typeof(NPC), nameof(NPC.checkAction)),
             prefix: new HarmonyMethod(typeof(CompanionPatches), nameof(CompanionPatches.CheckActionPrefix)),
             postfix: new HarmonyMethod(typeof(CompanionPatches), nameof(CompanionPatches.CheckActionPostfix)));
+        harmony.Patch(AccessTools.Method(typeof(Game1), nameof(Game1.pressUseToolButton), Type.EmptyTypes),
+            prefix: new HarmonyMethod(typeof(CompanionPatches), nameof(CompanionPatches.UseToolInteractionPrefix)),
+            finalizer: new HarmonyMethod(typeof(CompanionPatches), nameof(CompanionPatches.UseToolInteractionFinalizer)));
         harmony.Patch(AccessTools.Method(typeof(NPC), nameof(NPC.returnHomeFromFarmPosition)),
             prefix: new HarmonyMethod(typeof(CompanionPatches), nameof(CompanionPatches.ReturnHomePrefix)));
         harmony.Patch(AccessTools.Method(typeof(Game1), nameof(Game1.newDayAfterFade), new[] { typeof(Action) }),

@@ -9,6 +9,7 @@ namespace NpcFollowing.Patches;
 internal static class CompanionPatches
 {
     private const string DebugStickId = "(O)szzrain.NpcFollowing.object.debug.stick";
+    [ThreadStatic] private static int UseToolInteractionDepth;
     private static CompanionManager manager = null!;
     private static IModHelper helper = null!;
     private static IMonitor monitor = null!;
@@ -23,7 +24,7 @@ internal static class CompanionPatches
     public static bool CheckActionPrefix(NPC __instance, Farmer who, GameLocation l, ref bool __result, out bool __state)
     {
         __state = false;
-        if (!manager.CanRecruit())
+        if (UseToolInteractionDepth > 0 || !manager.CanRecruit())
             return true;
         try
         {
@@ -59,7 +60,7 @@ internal static class CompanionPatches
 
     public static void CheckActionPostfix(NPC __instance, Farmer who, GameLocation l, ref bool __result, bool __state)
     {
-        if (!manager.CanRecruit() || who.ActiveObject?.QualifiedItemId == DebugStickId
+        if (UseToolInteractionDepth > 0 || !manager.CanRecruit() || who.ActiveObject?.QualifiedItemId == DebugStickId
             || __instance.CurrentDialogue.Count > 0 || Game1.activeClickableMenu != null)
             return;
         try
@@ -84,6 +85,22 @@ internal static class CompanionPatches
         {
             monitor.Log($"Failed to handle companion interaction for '{__instance.Name}': {ex}", LogLevel.Error);
         }
+    }
+
+    public static void UseToolInteractionPrefix(out bool __state)
+    {
+        // Vanilla may route tool input through pressActionButton/checkAction.
+        // Scope by the call path so remapped keys and controllers work too.
+        __state = true;
+        UseToolInteractionDepth++;
+    }
+
+    public static void UseToolInteractionFinalizer(bool __state)
+    {
+        // Unwind nested calls, early returns and exceptions. A skipped prefix
+        // must not decrement an enclosing tool interaction's depth.
+        if (__state)
+            UseToolInteractionDepth--;
     }
 
     public static bool ReturnHomePrefix(NPC __instance) => !manager.CanRecruit()
